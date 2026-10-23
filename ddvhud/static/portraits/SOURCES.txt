@@ -1,7 +1,8 @@
 Villager portraits, downloaded once on 2026-10-19 from the Dreamlight Valley wiki
 (https://dreamlightvalleywiki.com) via its MediaWiki API (File URLs from prop=imageinfo,
-image list from the Characters page). Game artwork, local personal use only: do not
-publish or redistribute. The app serves them locally from /portraits/<Villager id>.png and
+image list from the Characters page). Game artwork, copyright Disney/Gameloft, NOT covered by
+this project's MIT license; included only to identify game content in this fan tool, and
+removed on request of a rights holder. The app serves them locally from /portraits/<Villager id>.png and
 makes no requests to the wiki when the page loads. Files are the unmodified wiki originals
 (352x352 except Elsa, 256x256).
 
