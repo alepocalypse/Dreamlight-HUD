@@ -30,6 +30,12 @@ The HUD shows what is in your save file, not live game state. The page re-reads 
 seconds, but the numbers only change after the game writes a new save. The footer shows when the save
 was last written, so you can tell how fresh the data is.
 
+## Your save is never modified
+
+The save is only ever read. Nothing is written to your save or game folder, and the code is covered by a
+test that fails if it tries. The one file the app writes is its own settings (the save folder you chose),
+under `%APPDATA%\DreamlightHUD` on Windows or `~/.config/ddvhud` on Linux.
+
 ## Windows
 
 Download `DreamlightHUD.exe` from the [latest release](../../releases/latest) and run it.
@@ -39,7 +45,7 @@ If your save is not found, use **Choose save folder…** and pick the folder tha
 
 ## From source
 
-    pip install cryptography            # plus pywebview for the window mode
+    pip install cryptography            # needed to decrypt the save file (plus pywebview for window mode)
     python3 -m ddvhud --window          # own window
     python3 -m ddvhud --port 8765       # browser at http://127.0.0.1:8765/
     python3 -m ddvhud --save PATH       # save folder or profile.json
