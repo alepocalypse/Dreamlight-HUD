@@ -21,7 +21,8 @@ Use the checkboxes to hide a Star Path you are not playing.
 ![Event duties](docs/screenshots/event-duties.png)
 
 **Companions by job.** Which Companions you have unlocked for each Job, which are equipped, and how far
-each Critter has been fed. A green outline means every Companion for that Job is done.
+each Critter has been fed. A green outline means you have enough level 5 Companions for this Job
+to equip two of them.
 
 ![Companions by job](docs/screenshots/companions.png)
 
