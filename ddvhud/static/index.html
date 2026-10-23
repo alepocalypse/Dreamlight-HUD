@@ -96,6 +96,7 @@ svg.picon *{fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;st
 #comps li{display:flex;gap:8px;justify-content:space-between;padding:2px 0;overflow-wrap:anywhere;border-top:1px solid var(--line)}
 #comps .eq{color:var(--flag);font-size:.85rem;margin-left:6px}
 #comps .sub{color:var(--muted);font-size:.75rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-top:4px}
+#comps .fedhead{display:flex;justify-content:space-between}
 #comps li>span:last-child{white-space:nowrap;color:var(--soft)}
 /* Event duties: the task list, in its own section after To-do */
 #events .grid,#events .together .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
@@ -191,7 +192,7 @@ function critterRow(c){
   const li=document.createElement('li');
   const n=document.createElement('span');n.textContent=(c.companion&&c.companion!==c.name)?c.companion+' ('+c.name+')':c.name;
   const f=document.createElement('span');
-  f.textContent='Fed '+c.fed+(c.needed!=null?'/'+c.needed:'');
+  f.textContent=c.fed+(c.needed!=null?'/'+c.needed:'');
   li.append(n,f);return li;
 }
 // Anchor to a wiki page, only for an https link on the wiki's own host; null otherwise.
@@ -200,6 +201,7 @@ function wikiLink(url,text){
   const a=document.createElement('a');a.href=url;a.target='_blank';a.rel='noopener noreferrer';a.textContent=text;return a;
 }
 function listOf(rows,fn){const u=document.createElement('ul');rows.forEach(r=>u.append(fn(r)));return u;}
+function fedHead(){const d=subhead('Critter');d.classList.add('fedhead');const f=document.createElement('span');f.textContent='Fed';d.append(f);return d;}
 function subhead(t){const d=document.createElement('div');d.className='sub';d.textContent=t;return d;}
 // Event duties: a checkbox per duty list (Star Path, Dreamlight Duties, Mist Duties) hides its duties from the task list;
 // the choice is remembered in this browser. An entry left with one duty is shown as a single.
@@ -284,7 +286,7 @@ function jobCard(j){
   nums.append(a,b);d.append(h,nums);
   if(j.unlocked.length)d.append(listOf(j.unlocked,compRow));
   else{const e=document.createElement('small');e.textContent='None unlocked yet';d.append(e);}
-  if(j.critters.length)d.append(subhead('Critters fed'),listOf(j.critters,critterRow));
+  if(j.critters.length)d.append(fedHead(),listOf(j.critters,critterRow));
   return d;
 }
 // Profession card: icon, name, Villager count, then the names in one comma-separated list.
@@ -325,7 +327,7 @@ function renderComps(c){
     const d=document.createElement('div');d.className='jcard';
     const h=document.createElement('h3');h.textContent='No job known';d.append(h);
     if(c.no_job.length)d.append(listOf(c.no_job,compRow));
-    if(c.no_job_critters.length)d.append(subhead('Critters fed'),listOf(c.no_job_critters,critterRow));
+    if(c.no_job_critters.length)d.append(fedHead(),listOf(c.no_job_critters,critterRow));
     cards.push(d);
   }
   $('complist').replaceChildren(...cards);
