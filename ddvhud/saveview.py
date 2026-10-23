@@ -278,6 +278,13 @@ def _duty_slots(profile):
     return out
 
 
+def _owned_pack_ids(profile):
+    """The content pack ids the save says are owned, or None when the list is missing or empty."""
+    ids = profile.get("LastKnownBoughtExpansionsAnyPlatform")
+    ids = [i for i in ids if isinstance(i, str)] if isinstance(ids, list) else []
+    return ids or None
+
+
 def _known_meals(profile):
     """Meal item ids whose recipe is in the player's cookbook (Player.Cookbook.Recipes), None when the
     save has no cookbook, so a meal is not called unknown on missing data."""
@@ -297,6 +304,8 @@ class SaveView:
         missing), current/target the amounts (0), filter the requirement from _filter ({} when the
         duty has none). weekly: one list of such duties per week, in week order (position counts
         within the week).
+    owned_pack_ids: the content pack ids in LastKnownBoughtExpansionsAnyPlatform (BaseGame, Expansion01, ...),
+        None when the list is missing or empty.
     known_meals: set of meal item ids the player has discovered the recipe for, None without a cookbook.
     duty_slots: [{key, duties}] one per village set of the rotating Dreamlight Duties (Valley) and Mist
         Duties (Eternity Isle) in Player.DutySlots, key the village's scene item id as text; duties:
@@ -312,3 +321,4 @@ class SaveView:
         self.star_paths = _star_paths(profile)
         self.duty_slots = _duty_slots(profile)
         self.daily_reset = profile.get("LastDailyReset")
+        self.owned_pack_ids = _owned_pack_ids(profile)

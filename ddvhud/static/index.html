@@ -80,6 +80,8 @@ svg.picon *{fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;st
 #nyv h3{font-size:.95rem;margin:0 0 6px}
 #nyv ul{list-style:none;padding:0;margin:0;font-size:.9rem;display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:0 16px}
 #nyv li{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px;padding:3px 0;border-top:1px solid var(--line);min-width:0}
+#nyv .sub{margin:10px 0 2px}
+#nyv .sub a{font-size:.75rem}
 #nyv a{color:var(--link);font-size:.85rem}
 /* Companion job cards: a grid so rows are even (not packed columns) */
 #comps .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
@@ -133,7 +135,7 @@ svg.picon *{fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;st
 <details class="sec" id="todo" open><summary><h2>To-do<span class="count" id="todocount"></span></h2></summary><div class="grid" id="todolist"></div></details>
 <details class="sec" id="events" open style="display:none"><summary><h2>Event duties</h2></summary><div class="together" id="sharedlist"></div></details>
 <details class="sec" id="comps" open><summary><h2>Companions by job</h2></summary><div class="grid" id="complist"></div></details>
-<details class="sec" id="nyv" open><summary><h2>Not in the village yet<span class="count" id="nyvcount"></span></h2></summary><div id="nyvlist"></div></details>
+<details class="sec" id="nyv" open><summary><h2>Not in the village yet</h2></summary><div id="nyvlist"></div></details>
 <div id="meta"></div><button id="metapick" style="display:none">Choose save folder…</button>
 <script>
 const $=id=>document.getElementById(id);
@@ -519,9 +521,8 @@ function todoCards(r){
   if(r.farm.length)cards.unshift(farmCard(r.farm));  // Farm is always the first card, Cook second
   return cards;
 }
-// The 'Not in the village yet' list: every Villager not living in the valley (in a realm or not unlocked), by name.
-function nyvList(rows){
-  const g=document.createElement('div');g.className='group';
+// 'Not in the village yet': Villagers of the packs you own who have not moved in, then those that need another pack.
+function nyvRows(rows){
   const ul=document.createElement('ul');
   [...rows].sort((x,y)=>x.name.localeCompare(y.name)).forEach(v=>{
     const li=document.createElement('li');
@@ -531,7 +532,27 @@ function nyvList(rows){
     if(a)li.append(a);
     ul.append(li);
   });
-  g.append(ul);return g;
+  return ul;
+}
+function nyvPart(title,...kids){
+  const g=document.createElement('div');g.className='group';
+  const h=document.createElement('h3');h.append(title);
+  g.append(h,...kids);return g;
+}
+function nyvParts(r){
+  const parts=[];
+  if(r.not_in_village.length)parts.push(nyvPart('Not moved in yet ('+r.not_in_village.length+')',nyvRows(r.not_in_village)));
+  const dlc=r.requires_dlc||[];
+  if(dlc.length){
+    const kids=dlc.map(d=>{
+      const w=document.createElement('div');
+      const t=document.createElement('div');t.className='sub';
+      const a=wikiLink(d.wiki_url,d.pack);t.append(a||d.pack);
+      w.append(t,nyvRows(d.villagers));return w;
+    });
+    parts.push(nyvPart('Requires additional DLC',...kids));
+  }
+  return parts;
 }
 async function tick(){
   try{
@@ -541,7 +562,7 @@ async function tick(){
     $('err').style.display='none';
     const s=r.summary;
     const sm=$('summary');
-    sm.replaceChildren(...[[s.available.village,' of '+s.available.total+' Villagers moved in'],[s.max_level,' at max level']].map(([n,t])=>{
+    sm.replaceChildren(...[[s.available.village,' of '+s.in_owned_packs+' Villagers moved in'],[s.max_level,' at max level']].map(([n,t])=>{
       const w=document.createElement('span');const b=document.createElement('b');b.textContent=n;w.append(b,t);return w;}));
     $('profs').replaceChildren(...r.professions.map(profCard));
     const nj=r.no_profession||[],njw=$('nojob');njw.replaceChildren();
@@ -559,8 +580,7 @@ async function tick(){
     $('events').style.display=ev.length?'':'none';
     lastEvents=r;renderEvents();
     renderComps(r.companions);
-    $('nyvlist').replaceChildren(...(r.not_in_village.length?[nyvList(r.not_in_village)]:[]));
-    $('nyvcount').textContent=r.not_in_village.length?'('+r.not_in_village.length+')':'';
+    $('nyvlist').replaceChildren(...nyvParts(r));
     $('meta').textContent='Save last written '+new Date(r.save_written).toLocaleString()+' | Daily reset recorded in save: '+(r.summary.daily_reset?new Date(r.summary.daily_reset).toLocaleString():'unknown')+' | Decode OK';
   }catch(e){fail('Server unreachable','Unknown');}
 }
@@ -575,7 +595,7 @@ function fail(msg,status,written){
   if(canPick){const b=document.createElement('button');b.className='pick';b.textContent='Choose save folder…';b.onclick=pickSave;$('err').append(b);}
   $('summary').replaceChildren();
   $('todocount').textContent='';
-  $('profs').replaceChildren();$('nojob').replaceChildren();$('todolist').replaceChildren();$('complist').replaceChildren();$('sharedlist').replaceChildren();$('events').style.display='none';$('nyvlist').replaceChildren();$('nyvcount').textContent='';
+  $('profs').replaceChildren();$('nojob').replaceChildren();$('todolist').replaceChildren();$('complist').replaceChildren();$('sharedlist').replaceChildren();$('events').style.display='none';$('nyvlist').replaceChildren();
   $('meta').textContent=(written?'Save last written '+new Date(written).toLocaleString()+' | ':'')+status;
 }
 // Remember which sections are collapsed (per browser; the page works without storage).
