@@ -1,9 +1,11 @@
 """Report builder: decoded profile dict + current time -> plain HUD data."""
+import math
+
 from . import catalog, duty_plan, duty_requirements, duty_text, shared_actions, slot_duties, stock_zones
 from .companions import COMPANIONS, JOBS  # COMPANIONS: tests patch the table in place through this name
 from .ingredients import CATEGORIES
 from .recipes import RECIPES
-from .roster import MAX_LEVEL, Roster, _distinct
+from .roster import MAX_LEVEL, Roster, _distinct, _parse_time
 from .saveview import SaveView
 from .spawns import spawn_for
 from .villagers import PROFESSIONS, VILLAGERS
@@ -255,8 +257,14 @@ def _companions(save):
     return {"jobs": jobs, "no_job": no_job, "no_job_critters": no_job_critters}
 
 
+def _days_left(ends, now):
+    """Whole days until `ends` (a part day counts as a day, 0 once over), or None without a readable date."""
+    end = _parse_time(ends)
+    return None if end is None else max(0, math.ceil((end - now).total_seconds() / 86400))
+
+
 def _event_duties(save, now):
-    """(star_paths, shared, plan). star_paths: one entry per Star Path, then one per rotating duty set (Dreamlight Duties, Mist Duties: tokens and ends None, no weekly): [{id, title, currency, tokens, ends, duties, weekly}]. duties: the OnGoing and
+    """(star_paths, shared, plan). star_paths: one entry per Star Path, then one per rotating duty set (Dreamlight Duties, Mist Duties: tokens and ends None, no weekly): [{id, title, currency, tokens, ends, days_left, duties, weekly}]. duties: the OnGoing and
     Completed-but-unclaimed duties as {text, current, target, done, requires}, requires (see
     duty_requirements.Requirement.to_json) only for the duties it could classify; weekly: [{week (from 1), duties}] for every
     week that has any such duty. NotStarted and CurrencyClaimed duties are left out. The save's positions count
@@ -325,6 +333,7 @@ def _event_duties(save, now):
                   for w, duties in enumerate(sp["weekly"], 1)]
         paths.append({"id": sid, "title": title, "currency": duty_text.currency_name(sid),
                       "tokens": sp["tokens"], "ends": sp["end_date"],
+                      "days_left": _days_left(sp["end_date"], now),
                       "duties": main,
                       "weekly": [w for w in weekly if w["duties"]]})
     for dset in save.duty_slots:   # the rotating Dreamlight Duties (Valley) and Mist Duties (Eternity Isle): listed like a Star Path
@@ -333,6 +342,7 @@ def _event_duties(save, now):
         text = lambda i, by_pos=by_pos: slot_duties.slot_duty_text(by_pos[i + 1]["duty_id"], by_pos[i + 1]["target"],
                                                                    by_pos[i + 1]["filter"])
         paths.append({"id": "DutySlots" + dset["key"], "title": title, "currency": "", "tokens": None, "ends": None,
+                      "days_left": None,
                       "duties": shown(dset["duties"], text, title, None, zoned=True), "weekly": []})
     shared = shared_actions.do_together(open_duties)
     return paths, shared, duty_plan.duty_plan(all_open, shared)

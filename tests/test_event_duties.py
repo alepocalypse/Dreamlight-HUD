@@ -207,7 +207,26 @@ class EventDuties(unittest.TestCase):
     def test_title_currency_tokens_and_end_date(self):
         [sp] = report({"Seafaring2026": {"CurrencyAmount": 42, "EndDate": "2026-12-01T00:00:00Z"}})
         self.assertEqual(sp, {"id": "Seafaring2026", "title": "Seafaring Star Path", "currency": "Doubloon Tokens",
-                              "tokens": 42, "ends": "2026-12-01T00:00:00Z", "duties": [], "weekly": []})
+                              "tokens": 42, "ends": "2026-12-01T00:00:00Z", "days_left": 43,
+                              "duties": [], "weekly": []})
+
+    def test_days_left_rounds_a_part_day_up_and_stops_at_zero(self):
+        def days(ends):
+            return report({"Seafaring2026": {"EndDate": ends}})[0]["days_left"]
+        self.assertEqual(days("2026-10-20T12:00:00Z"), 1)    # exactly one day
+        self.assertEqual(days("2026-10-20T12:00:01Z"), 2)    # one second over
+        self.assertEqual(days("2026-10-19T13:00:00Z"), 1)    # an hour left still counts as a day
+        self.assertEqual(days("2026-10-01T00:00:00Z"), 0)    # already ended
+
+    def test_no_or_unreadable_end_date_has_no_days_left(self):
+        self.assertIsNone(report({"Seafaring2026": {}})[0]["days_left"])
+        self.assertIsNone(report({"Seafaring2026": {"EndDate": "soon"}})[0]["days_left"])
+
+    def test_rotating_duty_sets_have_no_days_left(self):
+        slot = {"SlotId": 0, "DutyId": 2110000149, "State": "DutySlotState_OnGoing",
+                "StepData": {"ItemFilter": {"Data": None}, "TargetAmount": 1, "curAmount": 0}}
+        [sp] = build_report({"Player": {"DutySlots": {"1540000000": {"Slots": [slot]}}}}, NOW)["event_duties"]
+        self.assertIsNone(sp["days_left"])
 
     def test_unknown_star_path_gets_placeholders(self):
         [sp] = report({"Mystery2030": {"TasksProgress": [task("OnGoing", 0, 2)]}})

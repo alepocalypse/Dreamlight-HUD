@@ -120,6 +120,7 @@ svg.picon *{fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;st
 #events .tcard .req{padding-left:12px}   /* subtext sits two spaces in, like the zone under Any Nodes; titles and objectives do not */
 #dutyfilter{display:flex;flex-wrap:wrap;gap:4px 16px;font-size:.9rem;margin-bottom:8px}
 #dutyfilter label{display:flex;align-items:center;gap:4px;cursor:pointer}
+#pathinfo{color:var(--soft);font-size:.9rem;margin:0 0 10px;display:flex;flex-wrap:wrap;gap:4px 24px}
 #events .sub{color:var(--muted);font-size:.75rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-top:4px}
 #err{background:#6b1d1d;color:#fff;padding:10px;border-radius:8px;display:none;margin-bottom:12px}
 .pick{background:#fff;color:#6b1d1d;border:0;border-radius:6px;padding:4px 10px;margin-left:10px;cursor:pointer;font:inherit}
@@ -217,10 +218,19 @@ function renderEvents(){
       try{localStorage.setItem('ddv-duty-off',JSON.stringify([...o]));}catch(e){}renderEvents();});
     l.append(c,' '+title);bar.append(l);
   });
+  const info=document.createElement('div');info.id='pathinfo';
+  (r.event_duties||[]).filter(e=>e.tokens!=null&&!off.has(e.title)).forEach(e=>{
+    const d=document.createElement('div');
+    const b=document.createElement('b');b.textContent=e.title;d.append(b);
+    const bits=[];
+    if(e.days_left!=null)bits.push(e.days_left===0?'ends today':e.days_left+(e.days_left===1?' day left':' days left'));
+    bits.push(e.tokens+' '+e.currency);
+    d.append(' · '+bits.join(' · '));info.append(d);
+  });
   const plan=(r.plan||[]).map(e=>({...e,duties:e.duties.filter(d=>!off.has(d.path))})).filter(e=>e.duties.length)
     .map(e=>e.duties.length===1&&e.tier!=='rows'?{...e,tier:'single'}:e);
   const g=document.createElement('div');g.className='grid';g.append(...plan.map(taskCard));
-  $('sharedlist').replaceChildren(bar,...(plan.length?[subhead('Task list'),g]:[]));
+  $('sharedlist').replaceChildren(bar,...(info.children.length?[info]:[]),...(plan.length?[subhead('Task list'),g]:[]));
 }
 // One task-list entry (report "plan"), numbered in work order: the action, a tag for groups, then the duties it advances
 // (with their Star Path and the week for routine ones). A single is just its duty with n/target.
