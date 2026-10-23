@@ -80,7 +80,6 @@ svg.picon *{fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;st
 #nyv h3{font-size:.95rem;margin:0 0 6px}
 #nyv ul{list-style:none;padding:0;margin:0;font-size:.9rem;display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:0 16px}
 #nyv li{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px;padding:3px 0;border-top:1px solid var(--line);min-width:0}
-#nyv .tag{color:var(--soft);font-size:.8rem}
 #nyv a{color:var(--link);font-size:.85rem}
 /* Companion job cards: a grid so rows are even (not packed columns) */
 #comps .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
@@ -134,7 +133,7 @@ svg.picon *{fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;st
 <details class="sec" id="todo" open><summary><h2>To-do<span class="count" id="todocount"></span></h2></summary><div class="grid" id="todolist"></div></details>
 <details class="sec" id="events" open style="display:none"><summary><h2>Event duties</h2></summary><div class="together" id="sharedlist"></div></details>
 <details class="sec" id="comps" open><summary><h2>Companions by job</h2></summary><div class="grid" id="complist"></div></details>
-<details class="sec" id="nyv" open><summary><h2>Not in the village yet</h2></summary><div id="nyvlist"></div></details>
+<details class="sec" id="nyv" open><summary><h2>Not in the village yet<span class="count" id="nyvcount"></span></h2></summary><div id="nyvlist"></div></details>
 <div id="meta"></div><button id="metapick" style="display:none">Choose save folder…</button>
 <script>
 const $=id=>document.getElementById(id);
@@ -520,22 +519,19 @@ function todoCards(r){
   if(r.farm.length)cards.unshift(farmCard(r.farm));  // Farm is always the first card, Cook second
   return cards;
 }
-// One 'Not in the village yet' group (a realm or Unavailable); null when empty.
-function nyvGroup(rows,w,title){
-  if(!rows.length)return null;
+// The 'Not in the village yet' list: every Villager not living in the valley (in a realm or not unlocked), by name.
+function nyvList(rows){
   const g=document.createElement('div');g.className='group';
-  const h=document.createElement('h3');h.textContent=title+' ('+rows.length+')';
   const ul=document.createElement('ul');
-  rows.forEach(v=>{
+  [...rows].sort((x,y)=>x.name.localeCompare(y.name)).forEach(v=>{
     const li=document.createElement('li');
     const n=document.createElement('span');n.className='n';n.textContent=v.name;
-    const tag=document.createElement('span');tag.className='tag';tag.textContent=w;
-    li.append(n,tag);
+    li.append(n);
     const a=wikiLink(v.wiki_url,'Wiki');
     if(a)li.append(a);
     ul.append(li);
   });
-  g.append(h,ul);return g;
+  g.append(ul);return g;
 }
 async function tick(){
   try{
@@ -563,7 +559,8 @@ async function tick(){
     $('events').style.display=ev.length?'':'none';
     lastEvents=r;renderEvents();
     renderComps(r.companions);
-    $('nyvlist').replaceChildren(...[['realm','In a realm'],['unavailable','Unavailable']].map(([w,title])=>nyvGroup(r.not_in_village.filter(v=>v.where===w),w,title)).filter(Boolean));
+    $('nyvlist').replaceChildren(...(r.not_in_village.length?[nyvList(r.not_in_village)]:[]));
+    $('nyvcount').textContent=r.not_in_village.length?'('+r.not_in_village.length+')':'';
     $('meta').textContent='Save last written '+new Date(r.save_written).toLocaleString()+' | Daily reset recorded in save: '+(r.summary.daily_reset?new Date(r.summary.daily_reset).toLocaleString():'unknown')+' | Decode OK';
   }catch(e){fail('Server unreachable','Unknown');}
 }
@@ -578,7 +575,7 @@ function fail(msg,status,written){
   if(canPick){const b=document.createElement('button');b.className='pick';b.textContent='Choose save folder…';b.onclick=pickSave;$('err').append(b);}
   $('summary').replaceChildren();
   $('todocount').textContent='';
-  $('profs').replaceChildren();$('nojob').replaceChildren();$('todolist').replaceChildren();$('complist').replaceChildren();$('sharedlist').replaceChildren();$('events').style.display='none';$('nyvlist').replaceChildren();
+  $('profs').replaceChildren();$('nojob').replaceChildren();$('todolist').replaceChildren();$('complist').replaceChildren();$('sharedlist').replaceChildren();$('events').style.display='none';$('nyvlist').replaceChildren();$('nyvcount').textContent='';
   $('meta').textContent=(written?'Save last written '+new Date(written).toLocaleString()+' | ':'')+status;
 }
 // Remember which sections are collapsed (per browser; the page works without storage).
