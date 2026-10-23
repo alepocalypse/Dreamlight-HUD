@@ -354,6 +354,18 @@ class StarPaths(unittest.TestCase):
             self.assertEqual(SaveView(profile).star_paths, [])
         self.assertEqual(star_paths({"A": None, "B": "x"}), [])
 
+    def test_wrongly_typed_star_path_data_gives_empty_results_not_errors(self):
+        for states in ({"Progress": [1]}, "x", 5, [1], {"Progress": 5}):
+            self.assertEqual(SaveView({"Player": {"BattlePassStates": states}}).star_paths, [])
+        self.assertEqual(star_paths({"A": {"WeeklyTasksProgress": 5}})[0]["weekly"], [])
+        self.assertEqual(star_paths({"A": {"WeeklyTasksProgress": "x", "TasksProgress": 5}})[0]["duties"], [])
+
+    def test_wrongly_typed_filter_values_are_ignored(self):
+        data = {"Type": 5, "ActivityItemType": 7, "MineralRoughness": 3, "Item": 9}
+        paths = star_paths({"A": {"TasksProgress": [{"TaskState": 4, "Objective": {"ItemFilter": {"Data": data}}}]}})
+        self.assertEqual(paths[0]["duties"][0]["filter"], {"item": 9})
+        self.assertEqual(paths[0]["duties"][0]["state"], "")
+
     def test_a_bare_star_path_has_default_facts(self):
         self.assertEqual(star_paths({"A": {}}), [
             {"id": "A", "tokens": 0, "end_date": None, "duties": [], "weekly": []}])

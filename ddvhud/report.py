@@ -3,7 +3,7 @@ from . import catalog, duty_plan, duty_requirements, duty_text, shared_actions, 
 from .companions import COMPANIONS, JOBS  # COMPANIONS: tests patch the table in place through this name
 from .ingredients import CATEGORIES
 from .recipes import RECIPES
-from .roster import Roster, _distinct
+from .roster import MAX_LEVEL, Roster, _distinct
 from .saveview import SaveView
 from .spawns import spawn_for
 from .villagers import PROFESSIONS, VILLAGERS
@@ -47,8 +47,8 @@ def _profession_cards(villagers):
     cards = []
     for pid, members in sorted(groups.items(), key=lambda g: (g[0] is None, PROFESSIONS.get(g[0], ""))):
         # below Max level: lowest first (then name); at Max level: just the names, for one "done" line
-        below = sorted((v for v in members if v["level"] < 10), key=lambda v: (v["level"], v["name"]))
-        done = sorted(v["name"] for v in members if v["level"] >= 10)
+        below = sorted((v for v in members if v["level"] < MAX_LEVEL), key=lambda v: (v["level"], v["name"]))
+        done = sorted(v["name"] for v in members if v["level"] >= MAX_LEVEL)
         cards.append({
             "name": catalog.profession_name(pid),
             "count": len(members),
@@ -62,7 +62,7 @@ def _profession_cards(villagers):
 
 def _no_profession(villagers):
     """Villagers living in the valley with no Profession: lowest level first, those at Max level last."""
-    rows = sorted((v for v in villagers if not v["profession"]), key=lambda v: (v["level"] >= 10, v["level"], v["name"]))
+    rows = sorted((v for v in villagers if not v["profession"]), key=lambda v: (v["level"] >= MAX_LEVEL, v["level"], v["name"]))
     return [{"name": v["name"], "level": v["level"]} for v in rows]
 
 

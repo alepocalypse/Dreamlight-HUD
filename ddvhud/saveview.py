@@ -178,12 +178,21 @@ def _characters(profile):
             for c in entries if isinstance(c, dict) and isinstance(c.get("Base"), dict) and c["Base"].get("id")]
 
 
+def _dict(value):
+    return value if isinstance(value, dict) else {}
+
+
+def _str(value):
+    return value if isinstance(value, str) else ""
+
+
 def _star_paths(profile):
     """Star Paths, each built from its entry in Player.BattlePassStates.Progress."""
-    progress = ((profile.get("Player") or {}).get("BattlePassStates") or {}).get("Progress") or {}
+    progress = _dict(_dict(_dict(profile.get("Player")).get("BattlePassStates")).get("Progress"))
+    weeks = lambda entry: entry.get("WeeklyTasksProgress") if isinstance(entry.get("WeeklyTasksProgress"), list) else []
     return [{"id": sid, "tokens": entry.get("CurrencyAmount", 0), "end_date": entry.get("EndDate"),
-             "duties": _duties(entry.get("TasksProgress")), "weekly": [_duties(w.get("TasksProgress") if isinstance(w, dict) else None)
-                        for w in entry.get("WeeklyTasksProgress") or []]}
+             "duties": _duties(entry.get("TasksProgress")), "weekly": [_duties(_dict(w).get("TasksProgress"))
+                        for w in weeks(entry)]}
             for sid, entry in progress.items() if isinstance(entry, dict)]
 
 
@@ -213,10 +222,10 @@ def _filter(objective):
         facts["item"] = data["Item"]
     if data.get("ItemList"):
         facts["item_list"] = data["ItemList"]
-    kind = (data.get("ActivityItemType") or "").removeprefix("ActivityItemType_")
+    kind = _str(data.get("ActivityItemType")).removeprefix("ActivityItemType_")
     if kind and kind != "Default":
         facts["kind"] = kind
-    if data.get("Type"):
+    if _str(data.get("Type")):
         facts["type"] = data["Type"].removeprefix("ItemType_")
     if data.get("Tags"):
         facts["tags"] = data["Tags"]
@@ -228,7 +237,7 @@ def _filter(objective):
         facts["min_meal_stars"] = data["MinMealStarRating"]
     if data.get("IngredientsType"):
         facts["ingredient_tags"] = data["IngredientsType"]
-    if data.get("MineralRoughness") not in (None, "MineralRoughness_Any"):
+    if _str(data.get("MineralRoughness")) not in ("", "MineralRoughness_Any"):
         facts["roughness"] = data["MineralRoughness"].removeprefix("MineralRoughness_")
     for key, nested in data.items():
         if isinstance(nested, dict) and nested.get("UseField") is True:
@@ -243,7 +252,7 @@ def _duties(tasks):
         if not isinstance(t, dict):
             continue
         objective = t.get("Objective") if isinstance(t.get("Objective"), dict) else {}
-        duties.append({"position": i, "state": (t.get("TaskState") or "").removeprefix("BattlePassTaskState_"),
+        duties.append({"position": i, "state": _str(t.get("TaskState")).removeprefix("BattlePassTaskState_"),
                        "current": objective.get("CurAmount", 0), "target": objective.get("TargetAmount", 0),
                        "filter": _filter(objective)})
     return duties
