@@ -26,7 +26,9 @@ to equip two of them.
 
 ![Companions by job](docs/screenshots/companions.png)
 
-The page refreshes by itself every few seconds, so leave it open while you play.
+The HUD shows what is in your save file, not live game state. The page re-reads the save every few
+seconds, but the numbers only change after the game writes a new save. The footer shows when the save
+was last written, so you can tell how fresh the data is.
 
 ## Windows
 
