@@ -545,7 +545,7 @@ async function tick(){
     $('err').style.display='none';
     const s=r.summary;
     const sm=$('summary');
-    sm.replaceChildren(...[[s.available.village,' of '+s.available.total+' Villagers'],[s.max_level,' at max level']].map(([n,t])=>{
+    sm.replaceChildren(...[[s.available.village,' of '+s.available.total+' Villagers moved in'],[s.max_level,' at max level']].map(([n,t])=>{
       const w=document.createElement('span');const b=document.createElement('b');b.textContent=n;w.append(b,t);return w;}));
     $('profs').replaceChildren(...r.professions.map(profCard));
     const nj=r.no_profession||[],njw=$('nojob');njw.replaceChildren();
