@@ -30,6 +30,15 @@ The HUD shows what is in your save file, not live game state. The page re-reads 
 seconds, but the numbers only change after the game writes a new save. The footer shows when the save
 was last written, so you can tell how fresh the data is.
 
+## Safe to use
+
+This is not a mod, a cheat or a trainer. It never touches the game: it does not run inside it, read its
+memory, change its files or talk to its servers. All it does is open your save file the way any other
+program opens a file, and show you what is in it. It asks for no login or password, makes no network
+requests of its own (the page is served only to your own computer, on `127.0.0.1`), and sends nothing
+anywhere. The code is all here to read. This is an unofficial fan tool, so Disney and Gameloft have not
+approved it and I cannot speak for their rules.
+
 ## Your save is never modified
 
 The save is only ever read. Nothing is written to your save or game folder, and the code is covered by a
