@@ -39,6 +39,7 @@ class GameFolderIsNeverModified(unittest.TestCase):
     def tearDown(self):
         for d, _, _ in os.walk(self.root):
             os.chmod(d, 0o755)
+        os.chmod(self.path, 0o666)  # Windows cannot delete a read-only file
         shutil.rmtree(self.root)
 
     def snapshot(self):
