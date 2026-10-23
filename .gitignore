@@ -1,0 +1,8 @@
+samples/
+.venv/
+.scratch/
+__pycache__/
+*.pyc
+build/
+dist/
+*.spec

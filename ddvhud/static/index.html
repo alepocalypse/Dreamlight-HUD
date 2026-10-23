@@ -1,0 +1,580 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Dreamlight HUD</title>
+<style>
+:root{--bg:#14121f;--fg:#eee;--card:#231f3a;--line:#3a3560;--muted:#aab;--flag:#f5c26b;--link:#8ab4ff;--ok:#7fd99a;--bp:#e0b070;--icon:#c9c3f0;--iconbg:#e8e6f5;--tile:#b3b8de;--tileedge:#7c82b8;--glyph:#2a3260;--soft:#d2d0e6;--edge:#3a3560;--shadow:none}
+@media (prefers-color-scheme:light){:root{--bg:#ebe8f5;--fg:#1c1830;--card:#fff;--line:#d9d4ec;--muted:#5a5775;--flag:#8a5a00;--link:#1a55c8;--ok:#1b7a3a;--bp:#7a4a10;--icon:#3d3680;--iconbg:#ece9f7;--tile:#ece9f7;--tileedge:#c3bde0;--glyph:#2a3260;--soft:#35324f;--edge:#c3bde0;--shadow:0 1px 3px rgba(40,30,90,.14)}}
+/* Desktop only. Spacing scale: 4 / 8 / 12 / 16 / 24 px. Card padding 10x12, grid gap 12, section gap 24. */
+body{font:16px system-ui,sans-serif;margin:16px;background:var(--bg);color:var(--fg)}
+h1{font-size:1.15rem;margin:0 0 12px}
+/* title with the Villager numbers beside it */
+#head{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 16px}
+#head h1{margin:0}
+#head #summary{color:var(--soft);font-size:.95rem;display:flex;gap:4px 16px}
+#head #summary b{color:var(--fg)}
+h2{font-size:1rem;margin:24px 0 8px}
+h2 .count,#profs h2 .n{color:var(--muted);font-weight:500;font-size:.9rem}
+h2 .count{margin-left:6px}
+.card,.vcard,.jcard,.group{background:var(--card);border:1px solid var(--edge);box-shadow:var(--shadow);border-radius:8px;box-sizing:border-box;min-width:0}
+/* collapsible sections: the heading is the summary; the open state is remembered per section */
+details.sec>summary{cursor:pointer;list-style:none;display:flex;align-items:baseline;gap:6px}
+details.sec>summary::-webkit-details-marker{display:none}
+details.sec>summary::before{content:"\25BE";color:var(--muted);font-size:.8rem;width:1em}
+details.sec:not([open])>summary::before{content:"\25B8"}
+details.sec>summary h2{margin:16px 0 8px}
+/* Profession cards: six in one row when they fit, three per row below that; rows stretch to one height */
+#profs{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:12px}
+@media (min-width:1080px){#profs{grid-template-columns:repeat(6,1fr)}}
+#profs .card{padding:10px 12px;display:flex;flex-direction:column;gap:4px}
+#profs .card.complete{border-color:var(--ok)}
+#profs h2{font-size:1rem;margin:0;display:flex;align-items:center;gap:8px}
+#profs h2 .n{margin-left:auto}
+#profs .bonus{font-size:.85rem;color:var(--soft)}
+#profs .names{font-size:.9rem;line-height:1.45}
+#profs .names span{white-space:nowrap}
+#profs .names .max{color:var(--ok)}
+#profs .names .below{color:var(--flag)}
+#nojob{margin-top:12px;font-size:.9rem;line-height:1.45}
+#nojob .lbl{color:var(--muted);margin-right:6px}
+#nojob .max{color:var(--ok)}
+#nojob .below{color:var(--flag)}
+#todo .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}
+#todo .vcard{padding:10px 12px;display:flex;flex-direction:column;gap:4px}
+#todo .top{display:flex;align-items:center;gap:10px}
+.portrait{width:64px;height:64px;flex:none;box-sizing:border-box;border-radius:12px;background:var(--iconbg);object-fit:cover}
+.portrait.none{display:flex;align-items:center;justify-content:center;background:var(--tile);border:1px solid var(--tileedge);color:var(--glyph);font-size:1.6rem;font-weight:700}
+#todo .vname{flex:1;min-width:0;font-weight:600;overflow-wrap:anywhere}
+#todo .row{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:32px}
+#todo small{color:var(--soft)}
+#todo .gifts{list-style:none;margin:0;padding:0;font-size:.95rem;color:var(--soft)}
+#todo .gifts .chk{margin-left:6px;color:var(--ok);font-weight:700;cursor:default}
+#todo .gifts .bp{margin-left:6px;width:15px;height:15px;vertical-align:-2px;color:var(--bp);cursor:default}
+#todo .gifts a{color:var(--link)}
+#todo .gifts .spawn{display:block;margin:0 0 2px 12px;font-size:.8rem;color:var(--muted);white-space:nowrap}
+#todo .gifts .spawn .picon{width:14px;height:14px;padding:1px;border-radius:3px;vertical-align:-3px;margin-right:4px}
+#todo .none{font-size:.95rem}
+#todo .gather .gifts li{display:flex;align-items:center;gap:8px;padding:2px 0}
+#todo .gather .gname{flex:1;min-width:0}
+#todo .gather .gnum{color:var(--soft);font-size:.85rem;white-space:nowrap}
+#todo .gather .mark{width:1.2em;text-align:center;font-weight:700;cursor:default}
+#todo .gather .yes{color:var(--ok)}
+#todo .gather .no{color:#e5484d}
+#todo .gather .na{color:var(--muted)}
+#todo .vcard.wide{grid-column:span 2}
+#todo .vcard.wide ul{columns:2;column-gap:16px}
+#todo .vcard.wide li{break-inside:avoid}
+#todo .gather .stocked{color:var(--ok)}
+#todo .gather .short{color:#e5484d}
+#todo .gather small .where{font-style:normal}
+#todo .need{font-size:.85em;margin-left:5px;opacity:.9}
+#todo .gather .unknown{color:#e0a43a;font-weight:600;cursor:help}
+#todo .gather li.enough .gname,#todo .gather li.enough .gnum{color:var(--muted)}
+#todo .gather .next{color:var(--flag);font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+.picon{width:32px;height:32px;flex:none;box-sizing:border-box;padding:2px;border-radius:6px;background:var(--tile);border:1px solid var(--tileedge);image-rendering:pixelated}
+svg.picon{color:var(--glyph);padding:3px;image-rendering:auto}
+.picon.smooth{image-rendering:auto}
+svg.picon *{fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.talkicon{image-rendering:auto}
+.sicon{width:28px;height:28px}
+#nyv .group{padding:10px 12px;margin-top:8px}
+#nyv h3{font-size:.95rem;margin:0 0 6px}
+#nyv ul{list-style:none;padding:0;margin:0;font-size:.9rem;display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:0 16px}
+#nyv li{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px;padding:3px 0;border-top:1px solid var(--line);min-width:0}
+#nyv .tag{color:var(--soft);font-size:.8rem}
+#nyv a{color:var(--link);font-size:.85rem}
+/* Companion job cards: a grid so rows are even (not packed columns) */
+#comps .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+@media (min-width:1000px){#comps .grid{grid-template-columns:repeat(5,1fr)}}
+@media (min-width:1440px){#comps .grid{grid-template-columns:repeat(6,1fr)}}
+#comps .jcard{padding:10px 12px;display:flex;flex-direction:column;gap:6px}
+#comps .jcard.complete{border-color:var(--ok)}
+#comps .jcard small{color:var(--soft);font-size:.9rem}
+#comps .jcard h3{font-size:1rem;margin:0;display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+#comps .jcard h3 .state{margin-left:auto;color:var(--ok);font-size:.85rem;font-weight:600}
+#comps .nums{display:flex;gap:12px;color:var(--soft);font-size:.85rem;flex-wrap:wrap}
+#comps ul{list-style:none;margin:0;padding:0;font-size:.9rem}
+#comps li{display:flex;gap:8px;justify-content:space-between;padding:2px 0;overflow-wrap:anywhere;border-top:1px solid var(--line)}
+#comps .eq{color:var(--flag);font-size:.85rem;margin-left:6px}
+#comps .sub{color:var(--muted);font-size:.75rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-top:4px}
+#comps li>span:last-child{white-space:nowrap;color:var(--soft)}
+/* Event duties: the task list, in its own section after To-do */
+#events .grid,#events .together .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
+#events h3{font-size:1rem;margin:0}
+#events .together{margin-bottom:12px}
+#events .together .sub{margin:0 0 6px}
+#events .together .grid{margin-bottom:12px}
+#events .tcard{padding:10px 12px;display:flex;flex-direction:column;gap:6px}
+#events .tcard.single h3{font-size:.95rem}
+#events .tcard .span{color:var(--ok);font-size:.75rem;font-weight:600}
+#events .meta{display:flex;gap:12px;justify-content:space-between;color:var(--soft);font-size:.85rem;flex-wrap:wrap}
+#events ul{list-style:none;margin:0;padding:0;font-size:.9rem}
+#events li{display:flex;gap:8px;justify-content:space-between;padding:2px 0;overflow-wrap:anywhere;border-top:1px solid var(--line)}
+#events li>span:last-child{white-space:nowrap;color:var(--soft)}
+#events .req{display:block;color:var(--muted);font-size:.75rem}
+#events .zones{color:var(--ok)}
+#events li.done>span:last-child{color:var(--ok);font-weight:700}
+#events .tcard li.subrow{display:block;padding-bottom:0}   /* keeps its line above, like any row; its zone lines under it have none */
+#events .tcard li.subrow+li{border-top:0}
+#events .tcard li .zone{color:var(--ok);padding-left:12px;font-size:.9rem}
+#events .tcard .req{padding-left:12px}   /* subtext sits two spaces in, like the zone under Any Nodes; titles and objectives do not */
+#dutyfilter{display:flex;flex-wrap:wrap;gap:4px 16px;font-size:.9rem;margin-bottom:8px}
+#dutyfilter label{display:flex;align-items:center;gap:4px;cursor:pointer}
+#events .sub{color:var(--muted);font-size:.75rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-top:4px}
+#err{background:#6b1d1d;color:#fff;padding:10px;border-radius:8px;display:none;margin-bottom:12px}
+.pick{background:#fff;color:#6b1d1d;border:0;border-radius:6px;padding:4px 10px;margin-left:10px;cursor:pointer;font:inherit}
+#metapick{background:none;color:var(--soft);border:1px solid var(--edge);border-radius:6px;padding:2px 8px;margin-left:10px;cursor:pointer;font:inherit;font-size:.85rem}
+#meta{color:var(--soft);margin-top:24px;padding-top:12px;border-top:1px solid var(--edge);font-size:.85rem}
+#fanmade{color:var(--muted);margin-top:16px;font-size:.75rem;line-height:1.4}
+</style></head><body>
+<div id="err"></div>
+<div id="head"><h1>Dreamlight HUD</h1><span id="summary"></span></div>
+<details class="sec" id="profsec" open><summary><h2>Jobs</h2></summary><div id="profs"></div><div id="nojob"></div></details>
+<details class="sec" id="todo" open><summary><h2>To-do<span class="count" id="todocount"></span></h2></summary><div class="grid" id="todolist"></div></details>
+<details class="sec" id="events" open style="display:none"><summary><h2>Event duties</h2></summary><div class="together" id="sharedlist"></div></details>
+<details class="sec" id="comps" open><summary><h2>Companions by job</h2></summary><div class="grid" id="complist"></div></details>
+<details class="sec" id="nyv" open><summary><h2>Not in the village yet</h2></summary><div id="nyvlist"></div></details>
+<div id="meta"></div><button id="metapick" style="display:none">Choose save folder…</button>
+<script>
+const $=id=>document.getElementById(id);
+const NS='http://www.w3.org/2000/svg';
+function svg(cls,box){const e=document.createElementNS(NS,'svg');e.setAttribute('class',cls);e.setAttribute('viewBox',box||'0 0 24 24');return e;}
+function el(tag,attrs){const e=document.createElementNS(NS,tag);for(const k in attrs)e.setAttribute(k,attrs[k]);return e;}
+const ROLE_ICONS={'Digging':'digging','Fishing':'fishing','Foraging':'foraging','Gardening':'gardening','Mining':'mining','Time-bending':'timebending'};
+// Role icon from /roles (local copies of the wiki artwork); neutral drawn icon for none/unknown.
+function profIcon(name,cls,label){
+  label=label||name||'No profession';
+  const file=ROLE_ICONS[name];
+  if(file){
+    const i=document.createElement('img');i.className=cls||'picon';i.src='/roles/'+file+'.png';
+    i.alt=label;i.title=label;i.width=32;i.height=32;return i;
+  }
+  const i=svg(cls||'picon','0 0 24 24');i.setAttribute('role','img');i.setAttribute('aria-label',label);
+  const t=el('title',{});t.textContent=label;i.append(t);
+  i.append(el('circle',{cx:12,cy:8,r:3.5}),el('path',{d:'M5 20c1-5 4-7 7-7s6 2 7 7'}));
+  return i;
+}
+// Cooking pot, drawn (the wiki has no cooking-role artwork in /roles).
+function cookIcon(){
+  const i=svg('picon','0 0 24 24');i.setAttribute('role','img');i.setAttribute('aria-label','Cooking');
+  const t=el('title',{});t.textContent='Cooking';i.append(t);
+  i.append(el('path',{d:'M4 10h16v3a6 6 0 0 1-6 6h-4a6 6 0 0 1-6-6zM2 10h2M20 10h2M9 3c-1 1.5 1 2.5 0 4M13 3c-1 1.5 1 2.5 0 4',fill:'none',stroke:'currentColor','stroke-width':'1.8','stroke-linecap':'round','stroke-linejoin':'round'}));
+  return i;
+}
+// Villager portrait from /portraits (local copies of the wiki artwork); a neutral block when missing or broken.
+function portraitBlock(id,name){
+  const ph=()=>{const d=document.createElement('span');d.className='portrait none';d.setAttribute('role','img');d.setAttribute('aria-label',name);d.title=name;d.textContent=(name||'?').replace(/[^A-Za-z0-9]/,'').charAt(0).toUpperCase()||'?';return d;};
+  if(!Number.isInteger(id))return ph();
+  const i=document.createElement('img');i.className='portrait';i.src='/portraits/'+id+'.png';
+  i.alt=name;i.title=name;i.width=64;i.height=64;
+  i.addEventListener('error',()=>i.replaceWith(ph()),{once:true});
+  return i;
+}
+function talkIcon(){
+  const l='Daily talk outstanding';
+  const i=document.createElement('img');i.className='picon talkicon';i.src='/roles/talk.png';
+  i.alt=l;i.title=l;i.width=32;i.height=32;i.setAttribute('aria-label',l);return i;
+}
+const JOB_ICONS={'Flower pick-up':'flowers','Wood pick-up':'wood','Snippet catching':'snippets'};
+function jobIcon(name){
+  if(ROLE_ICONS[name])return profIcon(name,'picon',name);
+  const i=document.createElement('img');i.className='picon smooth';i.src='/roles/'+(JOB_ICONS[name]||'')+'.png';
+  i.alt=name;i.title=name;i.width=32;i.height=32;return i;
+}
+function compRow(c){
+  const li=document.createElement('li');
+  const n=document.createElement('span');n.textContent=c.name;
+  if(c.equipped){const e=document.createElement('span');e.className='eq';e.textContent='equipped';n.append(e);}
+  const l=document.createElement('span');l.textContent='Lv '+c.level;
+  li.append(n,l);return li;
+}
+function critterRow(c){
+  const li=document.createElement('li');
+  const n=document.createElement('span');n.textContent=(c.companion&&c.companion!==c.name)?c.companion+' ('+c.name+')':c.name;
+  const f=document.createElement('span');
+  f.textContent='Fed '+c.fed+(c.needed!=null?'/'+c.needed:'');
+  li.append(n,f);return li;
+}
+// Anchor to a wiki page, only for an https link on the wiki's own host; null otherwise.
+function wikiLink(url,text){
+  if(typeof url!=='string'||!url.startsWith('https://dreamlightvalleywiki.com/'))return null;
+  const a=document.createElement('a');a.href=url;a.target='_blank';a.rel='noopener noreferrer';a.textContent=text;return a;
+}
+function listOf(rows,fn){const u=document.createElement('ul');rows.forEach(r=>u.append(fn(r)));return u;}
+function subhead(t){const d=document.createElement('div');d.className='sub';d.textContent=t;return d;}
+// Event duties: a checkbox per duty list (Star Path, Dreamlight Duties, Mist Duties) hides its duties from the task list;
+// the choice is remembered in this browser. An entry left with one duty is shown as a single.
+let lastEvents=null;
+function disabledLists(){try{return new Set(JSON.parse(localStorage.getItem('ddv-duty-off')||'[]'));}catch(e){return new Set();}}
+function renderEvents(){
+  const r=lastEvents;if(!r)return;
+  const off=disabledLists(),lists=(r.event_duties||[]).map(e=>e.title);
+  const bar=document.createElement('div');bar.id='dutyfilter';
+  lists.forEach(title=>{
+    const l=document.createElement('label');const c=document.createElement('input');c.type='checkbox';c.checked=!off.has(title);
+    c.addEventListener('change',()=>{const o=disabledLists();c.checked?o.delete(title):o.add(title);
+      try{localStorage.setItem('ddv-duty-off',JSON.stringify([...o]));}catch(e){}renderEvents();});
+    l.append(c,' '+title);bar.append(l);
+  });
+  const plan=(r.plan||[]).map(e=>({...e,duties:e.duties.filter(d=>!off.has(d.path))})).filter(e=>e.duties.length)
+    .map(e=>e.duties.length===1&&e.tier!=='rows'?{...e,tier:'single'}:e);
+  const g=document.createElement('div');g.className='grid';g.append(...plan.map(taskCard));
+  $('sharedlist').replaceChildren(bar,...(plan.length?[subhead('Task list'),g]:[]));
+}
+// One task-list entry (report "plan"), numbered in work order: the action, a tag for groups, then the duties it advances
+// (with their Star Path and the week for routine ones). A single is just its duty with n/target.
+const MAX_ZONES=5;
+function zonesLine(zones){
+  if(!zones.length)return null;   // nothing up: no line, so the missing green text says it
+  const z=document.createElement('small');z.className='req zones';
+  z.textContent=zones.slice(0,MAX_ZONES).join(', ')+(zones.length>MAX_ZONES?' +'+(zones.length-MAX_ZONES)+' more':'');
+  return z;
+}
+function spotLine(text){
+  const z=document.createElement('small');z.className='req zones';z.textContent=text;
+  return z;
+}
+function growsLine(zones){
+  const z=document.createElement('small');z.className='req';z.textContent='Grows faster in: '+zones.join(', ');
+  return z;
+}
+const tidy=t=>t.replace(/\.$/,'');   // task-list titles carry no closing period
+function taskCard(t){
+  const d=document.createElement('div');d.className='card tcard '+t.tier;
+  const h=document.createElement('h3');h.textContent=tidy(t.tier==='single'?t.duties[0].text:t.label);d.append(h);
+  const where=x=>x.path+(x.weekly?' (week '+x.weekly+')':'');
+  if(t.tier==='single'){
+    const s=document.createElement('div');s.className='meta';
+    const w=document.createElement('span');w.textContent=where(t.duties[0]);
+    const n=document.createElement('span');n.textContent=t.duties[0].current+'/'+t.duties[0].target;
+    s.append(w,n);d.append(s);
+    if(t.duties[0].spot)d.append(spotLine(t.duties[0].spot));
+    if(t.duties[0].zones){const zl=zonesLine(t.duties[0].zones);if(zl)d.append(zl);}
+    if(t.duties[0].grows)d.append(growsLine(t.duties[0].grows));
+    return d;
+  }
+  if(t.tier!=='rows'){const s=document.createElement('div');s.className='span';s.textContent=t.tier==='cross'?'Across lists':'Same list';d.append(s);}
+  const ul=document.createElement('ul');
+  const line=(label,x,cls)=>{   // one row: the name (with its extra lines) and the count aligned right
+    const li=document.createElement('li');li.title=where(x);
+    const tx=document.createElement('span');tx.textContent=label;if(cls)tx.className=cls;
+    if(x.food){const f=document.createElement('small');f.className='req';f.textContent=x.food;tx.append(f);}
+    if(x.spot)tx.append(spotLine(x.spot));
+    if(t.tier!=='rows'){const q=document.createElement('small');q.className='req';q.textContent=where(x);tx.append(q);}
+    if(x.zones){const zl=zonesLine(x.zones);if(zl)tx.append(zl);}
+    if(x.grows)tx.append(growsLine(x.grows));
+    const n=document.createElement('span');n.textContent=x.current+'/'+x.target;
+    li.append(tx,n);return li;
+  };
+  const nodes=t.tier==='rows'?t.duties.filter(x=>x.row==='Nodes'):[];
+  t.duties.forEach(x=>{
+    if(nodes.includes(x)){
+      if(x===nodes[0]){const h=document.createElement('li');h.className='subrow';h.textContent='Any Nodes';ul.append(h);}
+      ul.append(line(x.place||'Any zone',x,'zone'));   // one zone per line, each with its own count
+    }else ul.append(line(t.tier==='rows'?x.row:tidy(x.text),x));
+  });
+  d.append(ul);return d;
+}
+function jobCard(j){
+  const d=document.createElement('div');d.className='jcard'+(j.complete?' complete':'');
+  const h=document.createElement('h3');h.append(jobIcon(j.job),j.job);
+  if(j.complete){const st=document.createElement('span');st.className='state';st.textContent='Complete';h.append(st);}
+  const nums=document.createElement('div');nums.className='nums';
+  const a=document.createElement('span');a.textContent='unlocked '+j.unlocked_count+'/'+j.goal;
+  const b=document.createElement('span');b.textContent='level 5: '+Math.min(j.at_max_count,j.goal)+'/'+j.goal;
+  nums.append(a,b);d.append(h,nums);
+  if(j.unlocked.length)d.append(listOf(j.unlocked,compRow));
+  else{const e=document.createElement('small');e.textContent='None unlocked yet';d.append(e);}
+  if(j.critters.length)d.append(subhead('Critters fed'),listOf(j.critters,critterRow));
+  return d;
+}
+// Profession card: icon, name, Villager count, then the names in one comma-separated list.
+// Max level green, below max yellow (Bonus % under the heading, its breakdown as hover text).
+function profCard(p){
+  const complete=p.count>0&&p.not_max===0;
+  const d=document.createElement('div');d.className='card'+(complete?' complete':'');
+  const h=document.createElement('h2');
+  const n=document.createElement('span');n.className='n';n.textContent=p.count;
+  h.append(profIcon(p.name,'picon sicon',p.name),p.name,n);
+  if(p.bonus){
+    const b=p.bonus,pc=x=>(Number.isInteger(x)?x:x.toFixed(1))+'%';
+    h.title='Bonus chance '+pc(b.chance)+' = base '+pc(b.base)+' + active Lv '+b.active_level+' x 3.5% = '+pc(3.5*b.active_level)+
+      ' + other Villagers 1% per level = '+pc(b.chance-b.base-3.5*b.active_level)+
+      '. Assumes the highest-level Villager is the active one. Source: wiki Roles and Bonuses.';
+    if(b.tier)h.title+=' ('+b.tier+')';
+  }
+  d.append(h);
+  if(p.bonus){
+    const bn=document.createElement('div');bn.className='bonus';bn.title=h.title;
+    bn.textContent='Bonus: '+(Number.isInteger(p.bonus.chance)?p.bonus.chance:p.bonus.chance.toFixed(1))+'%';
+    d.append(bn);
+  }
+  const names=[...p.villagers.map(v=>[v.name,'below','Lv '+v.level]),...p.done.map(x=>[x,'max','Max level'])];
+  if(names.length){
+    const w=document.createElement('div');w.className='names';
+    names.forEach(([name,cls,tip],k)=>{
+      const s=document.createElement('span');s.className=cls;s.textContent=name;s.title=tip;
+      w.append(s,k<names.length-1?', ':'');
+    });
+    d.append(w);
+  }
+  return d;
+}
+function renderComps(c){
+  const cards=c.jobs.map(jobCard);
+  if(c.no_job.length||c.no_job_critters.length){
+    const d=document.createElement('div');d.className='jcard';
+    const h=document.createElement('h3');h.textContent='No job known';d.append(h);
+    if(c.no_job.length)d.append(listOf(c.no_job,compRow));
+    if(c.no_job_critters.length)d.append(subhead('Critters fed'),listOf(c.no_job_critters,critterRow));
+    cards.push(d);
+  }
+  $('complist').replaceChildren(...cards);
+}
+// "Gather For Chests" To-do card: check (green) = the world has a trip's worth, red x = not enough, dash = the save cannot tell.
+function chestBlock(){
+  const d=document.createElement('span');d.className='portrait none';d.setAttribute('role','img');d.setAttribute('aria-label','Chest');d.title='Chest';
+  const i=svg('',' 0 0 24 24');i.setAttribute('width','36');i.setAttribute('height','36');
+  i.append(el('path',{d:'M3 10h18v9H3zM3 10a9 5 0 0 1 18 0M10 13h4v3h-4z'}));
+  i.style.cssText='fill:none;stroke:currentColor;stroke-width:1.8;stroke-linejoin:round';
+  d.textContent='';d.append(i);return d;
+}
+function gatherCard(g){
+  const d=document.createElement('div');d.className='vcard gather';
+  const top=document.createElement('div');top.className='top';
+  const n=document.createElement('span');n.className='vname';n.textContent='Gather For Chests';
+  top.append(chestBlock(),n);
+  const row=document.createElement('div');row.className='row';
+  const lv=document.createElement('span');lv.textContent=g.craftable+' of '+g.chests+' chests';
+  row.append(lv);
+  const hit=g.lines.find(l=>l.short>0&&l.ok===true);
+  if(hit){const c=document.createElement('span');c.className='chk';c.textContent='\u2713';
+    const tip=hit.spawned+' '+hit.name+' in the world, worth a trip';
+    c.title=tip;c.setAttribute('role','img');c.setAttribute('aria-label',tip);row.append(c);}
+  const ul=document.createElement('ul');ul.className='gifts';
+  const next=g.lines.find(l=>l.short>0&&l.ok!==false);
+  g.lines.forEach(l=>{
+    const li=document.createElement('li');
+    const nm=document.createElement('span');nm.className='gname';nm.textContent=l.name;
+    const a=wikiLink(l.wiki_url,l.name);if(a)nm.replaceChildren(a);
+    const mk=document.createElement('span');mk.className='mark';mk.setAttribute('role','img');
+    let tip;
+    if(l.short===0){li.className='enough';tip='Enough for '+g.chests+' chests';}
+    else if(l.ok===true){mk.className+=' yes';mk.textContent='\u2713';tip=l.spawned+' in the world, '+l.short+' needed';}
+    else if(l.ok===false){mk.className+=' no';mk.textContent='\u2717';tip='Only '+l.spawned+' in the world, '+l.short+' needed';}
+    else{mk.className+=' na';mk.textContent='\u2013';tip='The save does not show how many of this are in the world';}
+    mk.title=tip;mk.setAttribute('aria-label',tip);
+    const num=document.createElement('span');num.className='gnum';num.textContent=l.have+'/'+l.need;
+    li.append(nm);
+    if(l===next){const t=document.createElement('span');t.className='next';t.textContent='Farm next';li.append(t);}
+    li.append(num,mk);ul.append(li);
+  });
+  d.append(top,row,ul);return d;
+}
+// Time-bending To-do card: one row per zone (Valley, Eternity Isle) with its node count, a check once every node is back.
+function timeCard(zones){
+  const d=document.createElement('div');d.className='vcard gather';
+  const top=document.createElement('div');top.className='top';
+  const n=document.createElement('span');n.className='vname';n.textContent='Timebending';
+  const ic=profIcon('Time-bending','portrait none','Timebending');ic.width=ic.height=64;
+  top.append(ic,n);
+  const ul=document.createElement('ul');ul.className='gifts';
+  zones.forEach(z=>{
+    const li=document.createElement('li');
+    const nm=document.createElement('span');nm.className='gname';nm.textContent=z.zone;
+    const num=document.createElement('span');num.className='gnum';num.textContent=z.nodes+' of '+z.total;
+    li.append(nm,num);
+    if(z.full){
+      const c=document.createElement('span');c.className='chk';c.textContent='\u2713';
+      const tip='Every node in '+z.zone+' is back';c.title=tip;c.setAttribute('role','img');c.setAttribute('aria-label',tip);
+      li.append(c);
+    }
+    ul.append(li);
+  });
+  d.append(top,ul);return d;
+}
+// Cook To-do card: meals villagers want that the player holds none of (backpack, storage, chests), with their recipes.
+// (?) after a meal whose recipe is not discovered yet. Ingredient and meal name: green = in stock, red = missing (ingredients add where to get them).
+function cookCard(meals){
+  const d=document.createElement('div');d.className='vcard gather'+(meals.length>5?' wide':'');  // double wide above 5 recipes
+  const top=document.createElement('div');top.className='top';
+  const n=document.createElement('span');n.className='vname';n.textContent='COOK';
+  top.append(n);d.append(top);
+  const ul=document.createElement('ul');ul.className='gifts';
+  meals.forEach(m=>{
+    const li=document.createElement('li');li.style.cssText='display:block;padding:3px 0';
+    const nm=document.createElement('div');nm.className='gname';nm.textContent=m.name;
+    nm.title='For '+m.for.join(', ');
+    if(m.ready!==null)nm.className+=m.ready?' stocked':' short';
+    if(m.known===false){const q=document.createElement('span');q.className='unknown';q.textContent=' (?)';q.title='Recipe not discovered yet: pick the ingredients by hand';nm.append(q);}
+    li.append(nm);
+    if(m.ingredients.length){
+      // green = in stock (backpack, storage, chests); red = missing, with where to get it
+      const r=document.createElement('small');
+      m.ingredients.forEach((x,k)=>{
+        if(k)r.append(', ');
+        const s=document.createElement('span');s.textContent=x.name;
+        if(x.have!==null)s.className=x.have?'stocked':'short';
+        r.append(s);
+        if(x.have===false&&x.where){const w=document.createElement('span');w.className='where short';w.textContent=' ('+x.where+')';r.append(w);}
+      });
+      li.append(r);
+    }else if(m.recipe){const r=document.createElement('small');r.textContent=m.recipe;li.append(r);}
+    ul.append(li);
+  });
+  d.append(ul);return d;
+}
+// Farm To-do card: ingredients of the Cook card's recipes with fewer than `need` held, and where to get them.
+function farmCard(rows){
+  const d=document.createElement('div');d.className='vcard gather'+(rows.length>8?' wide':'');
+  const top=document.createElement('div');top.className='top';
+  const n=document.createElement('span');n.className='vname';n.textContent='GATHER';
+  top.append(n);d.append(top);
+  const ul=document.createElement('ul');ul.className='gifts';
+  rows.forEach(r=>{
+    const li=document.createElement('li');li.style.cssText='display:block;padding:3px 0';
+    const line=document.createElement('div');line.style.cssText='display:flex;gap:8px';
+    const nm=document.createElement('span');nm.className='gname';nm.textContent=r.name;
+    const a=wikiLink(r.wiki_url,r.name);if(a)nm.replaceChildren(a);
+    const num=document.createElement('span');num.className='gnum'+(r.have===0?' short':'');num.textContent=r.have+'/'+r.need;
+    line.append(nm,num);
+    const w=document.createElement('small');w.textContent=[r.how,r.where].filter(Boolean).join(' ');
+    li.append(line,w);ul.append(li);
+  });
+  d.append(ul);return d;
+}
+// A To-do Villager card: portrait, name, profession, talk icon, level, then the wanted gifts.
+function todoCard(t){
+  const d=document.createElement('div');d.className='vcard';
+  const top=document.createElement('div');top.className='top';
+  const n=document.createElement('span');n.className='vname';n.textContent=t.name;
+  top.append(portraitBlock(t.id,t.name),n,profIcon(t.profession,'picon',t.profession||'No profession'));
+  const row=document.createElement('div');row.className='row';
+  const lv=document.createElement('span');lv.textContent='Lv '+t.level;
+  row.append(lv);
+  if(t.daily_talk_needed)row.append(talkIcon());
+  d.append(top,row);
+  if(t.gifts.length){
+    const g=document.createElement('ul');g.className='gifts';
+    t.gifts.forEach(x=>{
+      const li=document.createElement('li');
+      const nm=document.createElement('span');nm.className='gname';nm.textContent=x.name;
+      const a=wikiLink(x.wiki_url,x.name);
+      if(a)nm.replaceChildren(a);
+      li.append(nm);
+      if(x.backpack_count>0){
+        const NS='http://www.w3.org/2000/svg';
+        const b=document.createElementNS(NS,'svg');b.setAttribute('class','bp');b.setAttribute('viewBox','0 0 16 16');
+        const tip=x.backpack_count+' in your backpack';
+        b.setAttribute('role','img');b.setAttribute('aria-label',tip);
+        const t=document.createElementNS(NS,'title');t.textContent=tip;
+        const body=document.createElementNS(NS,'path');
+        body.setAttribute('d','M5.5 3.5V3a2.5 2.5 0 0 1 5 0v.5M4 4h8a2 2 0 0 1 2 2v7a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 13V6a2 2 0 0 1 2-2zM5 10h6');
+        body.setAttribute('fill','none');body.setAttribute('stroke','currentColor');
+        body.setAttribute('stroke-width','1.5');body.setAttribute('stroke-linecap','round');body.setAttribute('stroke-linejoin','round');
+        const pk=document.createElementNS(NS,'rect');
+        pk.setAttribute('x','5');pk.setAttribute('y','7');pk.setAttribute('width','6');pk.setAttribute('height','3');pk.setAttribute('fill','currentColor');
+        b.append(t,body,pk);
+        li.append(b);
+      }
+      if(x.wanted>1){  // several Villagers want it: (in backpack/wanted), so you grab enough
+        const q=document.createElement('span');q.className='need'+(x.backpack_count>=x.wanted?' chk':'');
+        q.textContent='('+x.backpack_count+'/'+x.wanted+')';q.title=x.wanted+' Villagers want this';li.append(q);
+      }
+      if(x.in_chest){
+        const c=document.createElement('span');c.className='chk';c.textContent='\u2713';
+        const tip=x.chest_count+(x.chest_count===1?' in a chest':' in chests');
+        c.title=tip;c.setAttribute('role','img');c.setAttribute('aria-label',tip);
+        li.append(c);
+      }
+      g.append(li);
+      if(x.spawn){  // not in the backpack: where it spawns, on its own line under the gift
+        const sp=document.createElement('li');sp.className='spawn';
+        const ic=x.spawn.how==='Cooking'?cookIcon():profIcon(x.spawn.how,'picon',x.spawn.how);ic.setAttribute('width',14);ic.setAttribute('height',14);
+        sp.append(ic,x.spawn.where);g.append(sp);
+      }});
+    d.append(g);
+  }else{
+    const g=document.createElement('small');g.className='none';g.textContent='All gifts given';d.append(g);
+  }
+  return d;
+}
+// The To-do cards in display order: Cook, Farm, Villagers (gifts/talk), Chests, Time-bending.
+function todoCards(r){
+  const cards=[...r.todo].map((t,i)=>({t,i,bp:t.gifts.filter(x=>x.backpack_count>0).length,ck:t.gifts.filter(x=>x.in_chest).length}))
+    .sort((a,b)=>b.bp-a.bp||b.ck-a.ck||a.i-b.i).map(o=>o.t).map(todoCard);
+  if(r.gather)cards.push(gatherCard(r.gather));  // Chests after the Villagers
+  if(r.time_bending.length)cards.push(timeCard(r.time_bending));  // Timebending last
+  if(r.cook.length)cards.unshift(cookCard(r.cook));
+  if(r.farm.length)cards.unshift(farmCard(r.farm));  // Farm is always the first card, Cook second
+  return cards;
+}
+// One 'Not in the village yet' group (a realm or Unavailable); null when empty.
+function nyvGroup(rows,w,title){
+  if(!rows.length)return null;
+  const g=document.createElement('div');g.className='group';
+  const h=document.createElement('h3');h.textContent=title+' ('+rows.length+')';
+  const ul=document.createElement('ul');
+  rows.forEach(v=>{
+    const li=document.createElement('li');
+    const n=document.createElement('span');n.className='n';n.textContent=v.name;
+    const tag=document.createElement('span');tag.className='tag';tag.textContent=w;
+    li.append(n,tag);
+    const a=wikiLink(v.wiki_url,'Wiki');
+    if(a)li.append(a);
+    ul.append(li);
+  });
+  g.append(h,ul);return g;
+}
+async function tick(){
+  try{
+    const r=await (await fetch('/report.json')).json();
+    canPick=!!r.can_pick_save;$('metapick').style.display=canPick?'':'none';
+    if(r.status!=='ok'){fail(r.message,r.status==='decode_failed'?'Decode FAILED':'No save found',r.save_written);return;}
+    $('err').style.display='none';
+    const s=r.summary;
+    const sm=$('summary');
+    sm.replaceChildren(...[[s.available.village,' of '+s.available.total+' Villagers'],[s.max_level,' at max level']].map(([n,t])=>{
+      const w=document.createElement('span');const b=document.createElement('b');b.textContent=n;w.append(b,t);return w;}));
+    $('profs').replaceChildren(...r.professions.map(profCard));
+    const nj=r.no_profession||[],njw=$('nojob');njw.replaceChildren();
+    if(nj.length){
+      const l=document.createElement('span');l.className='lbl';l.textContent='No job:';njw.append(l);
+      nj.forEach((v,k)=>{
+        const s=document.createElement('span');s.className=v.level>=10?'max':'below';s.textContent=v.name;s.title=v.level>=10?'Max level':'Lv '+v.level;
+        njw.append(s,k<nj.length-1?', ':'');
+      });
+    }
+    const ntodo=r.todo.length+(r.time_bending.length?1:0)+(r.cook.length?1:0)+(r.farm.length?1:0)+(r.gather?1:0);
+    $('todocount').textContent=ntodo?'('+ntodo+')':'';
+    $('todolist').replaceChildren(...todoCards(r));
+    const ev=r.event_duties||[];
+    $('events').style.display=ev.length?'':'none';
+    lastEvents=r;renderEvents();
+    renderComps(r.companions);
+    $('nyvlist').replaceChildren(...[['realm','In a realm'],['unavailable','Unavailable']].map(([w,title])=>nyvGroup(r.not_in_village.filter(v=>v.where===w),w,title)).filter(Boolean));
+    $('meta').textContent='Save last written '+new Date(r.save_written).toLocaleString()+' | Daily reset recorded in save: '+(r.summary.daily_reset?new Date(r.summary.daily_reset).toLocaleString():'unknown')+' | Decode OK';
+  }catch(e){fail('Server unreachable','Unknown');}
+}
+// Show the error and blank all data, so old numbers never pass as current.
+let canPick=false;
+async function pickSave(){
+  try{const r=await (await fetch('/pick-save',{method:'POST'})).json();if(r.picked)tick();}catch(e){}
+}
+$('metapick').onclick=pickSave;
+function fail(msg,status,written){
+  $('err').style.display='block';$('err').textContent=msg;
+  if(canPick){const b=document.createElement('button');b.className='pick';b.textContent='Choose save folder…';b.onclick=pickSave;$('err').append(b);}
+  $('summary').replaceChildren();
+  $('todocount').textContent='';
+  $('profs').replaceChildren();$('nojob').replaceChildren();$('todolist').replaceChildren();$('complist').replaceChildren();$('sharedlist').replaceChildren();$('events').style.display='none';$('nyvlist').replaceChildren();
+  $('meta').textContent=(written?'Save last written '+new Date(written).toLocaleString()+' | ':'')+status;
+}
+// Remember which sections are collapsed (per browser; the page works without storage).
+document.querySelectorAll('details.sec').forEach(d=>{
+  try{if(localStorage.getItem('ddv-open-'+d.id)==='0')d.open=false;}catch(e){}
+  d.addEventListener('toggle',()=>{try{localStorage.setItem('ddv-open-'+d.id,d.open?'1':'0');}catch(e){}});
+});
+tick();setInterval(tick,5000);
+</script>
+<p id="fanmade">Dreamlight HUD is an unofficial, fan-made tool. It is not affiliated with, endorsed by, or sponsored by Disney or Gameloft. It reads your own save file on your computer and sends nothing anywhere. Disney Dreamlight Valley, its characters, names and artwork are trademarks and copyrights of Disney and Gameloft, used here only to identify the game. Recipe and item details come from the community <a href="https://dreamlightvalleywiki.com/" target="_blank" rel="noopener">Dreamlight Valley Wiki</a>.</p>
+</body></html>

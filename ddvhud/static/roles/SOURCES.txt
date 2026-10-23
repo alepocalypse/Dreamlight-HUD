@@ -1,0 +1,6 @@
+Profession (role) icons, downloaded on 2026-10-19 from the Dreamlight Valley wiki
+(https://dreamlightvalleywiki.com) via its MediaWiki API.
+These are the game's own artwork, copyright Disney/Gameloft. They are NOT covered by this
+project's MIT license and are included only to identify the game's content in this fan tool.
+If a rights holder objects, they will be removed. The app serves them locally from /roles/
+and makes no requests to the wiki when the page loads.
