@@ -1,0 +1,16 @@
+name: Feature request
+description: Suggest something the HUD should show or do
+labels: [needs-triage]
+body:
+  - type: textarea
+    id: want
+    attributes:
+      label: What would you like
+      description: What do you want to know or do while playing?
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why it helps
+      description: What do you do today instead?
