@@ -34,6 +34,7 @@ h1{font-size:1.15rem;margin:0}
 .acard.single .req{font-weight:400}
 .req{display:block;color:var(--muted);font-size:.75rem;padding-left:12px}
 .req.list{padding-left:0}
+.req.reward{padding-left:0;text-align:right}
 .zones{color:var(--ok)}
 #none{color:var(--soft);font-size:.95rem}
 #unclaimed{color:var(--ok);font-size:.9rem;margin-top:16px}
@@ -81,6 +82,7 @@ function dutyRow(d){
   if(d.zones&&d.zones.length)tx.append(small(d.zones.slice(0,MAX_ZONES).join(', ')+(d.zones.length>MAX_ZONES?' +'+(d.zones.length-MAX_ZONES)+' more':''),'zones'));
   if(d.grows)tx.append(small('Grows faster in: '+d.grows.join(', ')));
   const n=document.createElement('span');n.textContent=(d.target-d.current)+' more';n.title=d.current+'/'+d.target;
+  if(d.reward)n.append(small(d.reward.amount+' '+d.reward.currency,'reward'));
   li.append(tx,n);return li;
 }
 function actionCard(a){

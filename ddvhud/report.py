@@ -271,10 +271,11 @@ def _event_duties(save, now):
     from 1, the text table's from 0. shared: the 'do together' groups across them (shared_actions.do_together,
     open duties only), each duty as {path (the Star Path title), text, current, target, weekly (week or None)}. plan: the ordered task
     list over every open duty, classified or not (duty_plan.duty_plan). actions: Duty mode's Action list over the
-    same duties (duty_mode.duty_actions)."""
+    same duties (duty_mode.duty_actions); a rotating duty there carries reward {amount, currency} when the game's
+    table has one for its set (slot_duties.slot_reward)."""
     open_duties, all_open = [], []
 
-    def shown(duties, text, title, week, zoned=False):
+    def shown(duties, text, title, week, zoned=False, reward=lambda i: None):
         out = []
         for d in duties:
             if d["state"] not in ("OnGoing", "Completed"):
@@ -288,6 +289,8 @@ def _event_duties(save, now):
             if not duty["done"]:
                 entry = {"path": title, "text": shown_text, "current": d["current"],
                          "target": d["target"], "weekly": week}
+                if reward(d["position"] - 1):
+                    entry["reward"] = reward(d["position"] - 1)
                 fam = (duty_requirements.colour_family(shown_text, req)
                        or duty_requirements.hang_out_family(shown_text, d["filter"])
                        or duty_requirements.cook_family(shown_text, d["filter"])
@@ -342,9 +345,10 @@ def _event_duties(save, now):
         title = slot_duties.slot_title(dset["key"])
         text = lambda i, by_pos=by_pos: slot_duties.slot_duty_text(by_pos[i + 1]["duty_id"], by_pos[i + 1]["target"],
                                                                    by_pos[i + 1]["filter"])
+        reward = lambda i, by_pos=by_pos, key=dset["key"]: slot_duties.slot_reward(by_pos[i + 1]["duty_id"], key)
         paths.append({"id": "DutySlots" + dset["key"], "title": title, "currency": "", "tokens": None, "ends": None,
                       "days_left": None,
-                      "duties": shown(dset["duties"], text, title, None, zoned=True), "weekly": []})
+                      "duties": shown(dset["duties"], text, title, None, zoned=True, reward=reward), "weekly": []})
     shared = shared_actions.do_together(open_duties)
     return paths, shared, duty_plan.duty_plan(all_open, shared), duty_mode.duty_actions(all_open, shared)
 

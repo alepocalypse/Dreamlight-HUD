@@ -74,6 +74,17 @@ class ReportActions(unittest.TestCase):
     def test_no_duties_no_actions(self):
         self.assertEqual(build_report({}, NOW)["actions"], [])
 
+    def test_rotating_duties_carry_the_reward_their_set_pays_and_unknown_ids_none(self):
+        def slot(i, duty_id):
+            return {"SlotId": i, "DutyId": duty_id, "State": "DutySlotState_OnGoing",
+                    "StepData": {"ItemFilter": {"Data": None}, "TargetAmount": 5, "curAmount": 0}}
+        profile = {"Player": {"DutySlots": {"1540000000": {"Slots": [slot(0, 2110000034)]},
+                                            "1540000101": {"Slots": [slot(0, 2110000040), slot(1, 7)]}}}}
+        duties = {d["text"]: d.get("reward") for a in build_report(profile, NOW)["actions"] for d in a["duties"]}
+        self.assertEqual(duties, {"Plant 5 Vegetables": {"amount": 150, "currency": "Dreamlight"},
+                                  "Catch 5 Fish": {"amount": 250, "currency": "Mist"},
+                                  "Duty #7": None})
+
 
 
 class DutyPage(unittest.TestCase):
