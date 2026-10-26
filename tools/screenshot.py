@@ -83,6 +83,10 @@ def demo_report():
             objective["ItemFilter"] = {"Data": data}
         return {"Objective": objective, "TaskState": "BattlePassTaskState_" + state}
 
+    def slot(i, duty_id, target):
+        return {"SlotId": i, "DutyId": duty_id, "State": "DutySlotState_OnGoing",
+                "StepData": {"ItemFilter": {"Data": None}, "TargetAmount": target, "curAmount": 0}}
+
     fish, gems = {"ActivityItemType": "ActivityItemType_Fish"}, {"ActivityItemType": "ActivityItemType_Mineral"}
     beach = {**fish, "FishLocation": {"UseField": True, "Value": ["Location_Beach"]}}
     blue = {**gems, "Tags": [2000700000]}
@@ -115,6 +119,9 @@ def demo_report():
                     "EndDate": (now + datetime.timedelta(days=30)).isoformat(),
                     "TasksProgress": idle * 4 + [duty("OnGoing", 4, 10, gems), duty("OnGoing", 1, 5, fish)]
                     + idle * 7 + [duty("OnGoing", 0, 2)]}}},
+            # Dreamlight Duties and Mist Duties: Rewards at par with Dreamlight, and an id the game table lacks (ranks 0, last)
+            "DutySlots": {"1540000000": {"Slots": [slot(0, 2110000034, 5), slot(1, 7, 1)]},
+                          "1540000101": {"Slots": [slot(0, 2110000040, 3)]}},
             "ContainerInventories": containers,
             "AssignedPets": [120000013, 120000001, 120000099],
             "Pets": [{"PetItemID": 120000002, "FriendshipLevel": 5},

@@ -41,6 +41,12 @@ class DemoReport(unittest.TestCase):
         sizes = {a["size"] for a in screenshot.demo_report()["actions"]}
         self.assertLessEqual({"Double", "Triple", "Quad", "Single"}, sizes)
 
+    def test_duty_mode_ranks_rotating_duties_at_par_and_an_unknown_one_last_at_zero(self):
+        actions = screenshot.demo_report()["actions"]
+        values = {d["text"]: d["value"] for a in actions for d in a["duties"] if d["path"] in ("Dreamlight Duties", "Mist Duties")}
+        self.assertEqual(values, {"Plant 5 Vegetables": 150, "Catch 3 Fish": 250, "Duty #7": 0})
+        self.assertEqual((actions[-1]["label"], actions[-1]["value"]), ("Duty #7", 0))
+
     def test_profession_cards_show_mixed_and_all_max_states(self):
         cards = screenshot.demo_report()["professions"]
         # a card with Villagers below max and some at max, and one where everyone is at max
@@ -70,6 +76,21 @@ class BrowserRun(unittest.TestCase):
                              ['["Haunting Elegance"]', None])
             self.assertEqual(errors, [])
             self.assertFalse(page.evaluate("document.documentElement.scrollWidth > window.innerWidth"))
+
+    def test_duty_mode_shows_each_actions_total_and_re_ranks_when_a_list_is_unticked(self):
+        cards = """els => els.map(c => [(c.querySelector('h3') || c.querySelector('li > span')).firstChild.textContent,
+                                    (c.querySelector('.top .worth') || {}).textContent || null])"""
+        with pwpage.app_page(width=400, demo=True, path="/duty") as (page, errors):
+            self.assertEqual(page.eval_on_selector_all(".acard", cards)[:3],
+                             [["Catch fish at Dazzle Beach", "≈ 600 Dreamlight"], ["Catch 3 Fish", None],
+                              ["Mine blue gems", "≈ 200 Dreamlight"]])
+            page.get_by_label("Haunting Elegance").uncheck()
+            self.assertEqual(page.eval_on_selector_all(".acard", cards), [
+                ["Catch fish at Dazzle Beach", "≈ 350 Dreamlight"], ["Catch 3 Fish", None], ["Mine blue gems", "≈ 150 Dreamlight"],
+                ["Hang out with a mermaid princess", None], ["Plant 5 Vegetables", None],
+                ["Buy something from Scrooge McDuck's Store", None], ["Feed Sea Turtles their favorite food", None],
+                ["Duty #7", None]])
+            self.assertEqual(errors, [])
 
 
 if __name__ == "__main__":

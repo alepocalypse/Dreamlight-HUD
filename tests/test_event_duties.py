@@ -111,7 +111,7 @@ class EventDuties(unittest.TestCase):
                          [("cross", "Buy from Scrooge McDuck's Store", 2), ("single", "Catch any fish.", 1)])
         self.assertEqual(plan[0]["duties"][0], {"path": "Seafaring Star Path", "text": plan[0]["duties"][0]["text"],
                                                 "current": 1, "target": 3, "weekly": None,
-                                                "reward": {"amount": 10, "currency": "Doubloon Tokens"}})
+                                                "reward": {"amount": 10, "currency": "Doubloon Tokens"}, "value": 100})
 
     def test_a_colour_duty_lists_the_zones_that_can_serve_it_right_now(self):
         blue = {"ActivityItemType": "ActivityItemType_Mineral", "Tags": [2000700000]}   # Mine for blue gems.

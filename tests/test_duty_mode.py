@@ -13,6 +13,11 @@ def task(state, cur=0, target=1):
     return {"Objective": {"CurAmount": cur, "TargetAmount": target}, "TaskState": "BattlePassTaskState_" + state}
 
 
+def rotating(i, duty_id):   # a Dreamlight or Mist Duties slot, OnGoing at 0/5
+    return {"SlotId": i, "DutyId": duty_id, "State": "DutySlotState_OnGoing",
+            "StepData": {"ItemFilter": {"Data": None}, "TargetAmount": 5, "curAmount": 0}}
+
+
 def duty(text, path="Seafaring", weekly=None, current=0, target=5, **extra):
     return {"path": path, "text": text, "current": current, "target": target, "weekly": weekly, **extra}
 
@@ -58,6 +63,22 @@ class DutyActions(unittest.TestCase):
         [action] = duty_actions([a, b], [group("Catch fish at Dazzle Beach", a, b)])
         self.assertEqual((action["duties"][0]["spot"], action["duties"][0]["zones"]), ("Dazzle Beach: pier", ["Dazzle Beach"]))
 
+    def test_actions_rank_by_the_sum_of_their_duties_values_highest_first(self):
+        a, b = duty("Catch any fish.", value=50), duty("Catch fish at Dazzle Beach.", value=100)
+        gem, plant = duty("Mine for blue gems.", value=200), duty("Plant crops.", value=0)
+        actions = duty_actions([a, b, gem, plant], [group("Catch fish at Dazzle Beach", a, b)])
+        self.assertEqual([(a["label"], a["value"]) for a in actions],
+                         [("Mine for blue gems.", 200), ("Catch fish at Dazzle Beach", 150), ("Plant crops.", 0)])
+
+    def test_equal_values_rank_the_larger_action_first_then_keep_the_current_order(self):
+        scrooge = [duty("Buy from Scrooge.", value=50), duty("Buy from Scrooge.", path="Haunting Elegance", value=50)]
+        fish = [duty(f"Fish {n}.", value=25) for n in range(4)]
+        later, earlier = duty("Pet a companion.", value=0), duty("Take a picture.", value=0)
+        actions = duty_actions([*scrooge, *fish, later, earlier],
+                               [group("Scrooge", *scrooge), group("Fish", *fish)])   # across two lists: first today
+        self.assertEqual([(a["label"], a["value"]) for a in actions],
+                         [("Fish", 100), ("Scrooge", 100), ("Pet a companion.", 0), ("Take a picture.", 0)])
+
 
 
 class ReportActions(unittest.TestCase):
@@ -94,6 +115,31 @@ class ReportActions(unittest.TestCase):
         self.assertEqual(duties, {"Uproot Night Thorns.": {"amount": 5, "currency": "Pumpkin Tokens"},
                                   "Mine 20 orange gems.": {"amount": 30, "currency": "Pumpkin Tokens"},
                                   "Duty #132": None})
+
+    def test_a_star_path_token_is_worth_ten_dreamlight(self):
+        progress = {"HauntingElegance2026": {"TasksProgress": [task("OnGoing", 1, 3)]}}
+        [action] = build_report({"Player": {"BattlePassStates": {"Progress": progress}}}, NOW)["actions"]
+        self.assertEqual((action["duties"][0]["reward"]["amount"], action["duties"][0]["value"], action["value"]), (5, 50, 50))
+
+    def test_dreamlight_and_mist_count_at_par_and_an_unknown_rotating_duty_zero(self):
+        profile = {"Player": {"DutySlots": {"1540000000": {"Slots": [rotating(0, 2110000034)]},
+                                            "1540000101": {"Slots": [rotating(0, 2110000040), rotating(1, 7)]}}}}
+        actions = build_report(profile, NOW)["actions"]
+        self.assertEqual([(a["label"], a["value"]) for a in actions],
+                         [("Catch 5 Fish", 250), ("Plant 5 Vegetables", 150), ("Duty #7", 0)])
+
+    def test_a_star_path_duty_missing_from_the_table_ranks_at_its_paths_median_reward_and_shows_none(self):
+        # Seafaring's known Rewards: 5 x3, 10 x9, 15 x10, 20 x5, 25 x1; the 14th and 15th are both 15 tokens
+        progress = {"Seafaring2026": {"TasksProgress": [task("NotStarted")] * 25 + [task("OnGoing", 0, 1)],
+                                      "WeeklyTasksProgress": [{}, {"TasksProgress": [task("OnGoing", 0, 1)]}]}}
+        actions = build_report({"Player": {"BattlePassStates": {"Progress": progress}}}, NOW)["actions"]
+        self.assertEqual([(a["label"], a["value"], a["duties"][0].get("reward")) for a in actions],
+                         [("Duty #26", 150, None), ("Hang out with a mermaid princess.", 150, None)])
+
+    def test_a_star_path_with_no_known_rewards_ranks_its_duties_zero(self):
+        progress = {"NewPath2027": {"TasksProgress": [task("OnGoing", 0, 1)]}}
+        [action] = build_report({"Player": {"BattlePassStates": {"Progress": progress}}}, NOW)["actions"]
+        self.assertEqual(action["value"], 0)
 
 
 

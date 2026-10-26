@@ -25,6 +25,7 @@ h1{font-size:1.15rem;margin:0}
 .acard.double .badge{color:var(--double)}
 .acard.triple .badge{color:var(--triple)}
 .acard.quad .badge{color:var(--quad)}
+.worth{flex:none;color:var(--soft);font-size:.8rem;white-space:nowrap}
 .acard ul{list-style:none;margin:0;padding:0;font-size:.9rem}
 .acard li{display:flex;gap:8px;justify-content:space-between;padding:2px 0;overflow-wrap:anywhere;border-top:1px solid var(--line)}
 .acard li>span:first-child{min-width:0}
@@ -63,7 +64,9 @@ const key=d=>d.path+'\n'+d.text+'\n'+d.weekly;
 const MAX_ZONES=5;
 function small(text,cls){const z=document.createElement('small');z.className='req'+(cls?' '+cls:'');z.textContent=text;return z;}
 // The report's Actions without the hidden lists' Duties: an Action left with one Duty becomes that Duty's Single,
-// dropped when the Duty already shows under a remaining Action.
+// dropped when the Duty already shows under a remaining Action. Re-ranked as the server ranks: by the shown Duties'
+// summed value (Dreamlight-equivalent), then Size, then the report's order (a stable sort).
+const worthOf=a=>a.duties.reduce((n,d)=>n+(d.value||0),0);
 function shownActions(r,off){
   const acts=(r.actions||[]).map(a=>({...a,duties:a.duties.filter(d=>!off.has(d.path))})).filter(a=>a.duties.length)
     .map(a=>a.duties.length===1?{...a,size:'Single',label:a.duties[0].text}:{...a,size:sizeOf(a.duties.length)});
@@ -71,9 +74,11 @@ function shownActions(r,off){
   return acts.filter(a=>{
     if(a.duties.length>1)return true;
     const k=key(a.duties[0]);if(inGroup.has(k)||seen.has(k))return false;seen.add(k);return true;
-  });
+  }).map(a=>({...a,value:worthOf(a)})).sort((x,y)=>y.value-x.value||y.duties.length-x.duties.length);
 }
-function dutyRow(d){
+const WORTH_TIP='Reward in Dreamlight-equivalent: 1 Star Path token = 10 Dreamlight; Dreamlight, Mist and Storybook Magic at par';
+function worth(n){const w=document.createElement('span');w.className='worth';w.textContent='≈ '+n+' Dreamlight';w.title=WORTH_TIP;return w;}
+function dutyRow(d,single){
   const li=document.createElement('li');
   const tx=document.createElement('span');tx.textContent=tidy(d.text);
   tx.append(small(d.path+(d.weekly?' (week '+d.weekly+')':''),'list'));
@@ -83,13 +88,16 @@ function dutyRow(d){
   if(d.grows)tx.append(small('Grows faster in: '+d.grows.join(', ')));
   const n=document.createElement('span');n.textContent=(d.target-d.current)+' more';n.title=d.current+'/'+d.target;
   if(d.reward)n.append(small(d.reward.amount+' '+d.reward.currency,'reward'));
+  if(single&&d.value&&d.value!==(d.reward&&d.reward.amount)){   // tokens, or a Star Path Duty ranked at its median
+    const w=small('≈ '+d.value+' Dreamlight','reward');w.title=WORTH_TIP+(d.reward?'':' (no Reward listed: this Star Path\'s median)');n.append(w);}
   li.append(tx,n);return li;
 }
 function actionCard(a){
   const c=document.createElement('div');c.className='acard '+a.size.toLowerCase();
-  if(a.size==='Single'){const ul=document.createElement('ul');ul.append(dutyRow(a.duties[0]));c.append(ul);return c;}
+  if(a.size==='Single'){const ul=document.createElement('ul');ul.append(dutyRow(a.duties[0],true));c.append(ul);return c;}
   const top=document.createElement('div');top.className='top';
   const h=document.createElement('h3');h.textContent=tidy(a.label);top.append(h);
+  top.append(worth(a.value));
   const b=document.createElement('span');b.className='badge';b.textContent=a.size;top.append(b);
   const ul=document.createElement('ul');a.duties.forEach(d=>ul.append(dutyRow(d)));
   c.append(top,ul);return c;

@@ -13,6 +13,8 @@ below; replace it. Unknown ids or positions answer a visible placeholder ('Duty 
 Rewards (duty_reward, weekly_duty_reward) come from star_path_rewards.py, generated from the wiki by
 tools/gen_star_path_rewards.py, same positions.
 """
+import statistics
+
 from .star_path_rewards import STAR_PATH_REWARDS
 
 STAR_PATHS = {
@@ -2083,6 +2085,14 @@ def weekly_duty_reward(star_path_id, week, slot):
     weeks = STAR_PATH_REWARDS.get(star_path_id, {}).get("weeks", [])
     amounts = weeks[week] if 0 <= week < len(weeks) else []
     return _reward(star_path_id, amounts[slot] if 0 <= slot < len(amounts) else None)
+
+
+def median_reward(star_path_id):
+    """The median token amount over the duties and weekly duties the table lists for the Star Path, or None
+    when it lists none: what a duty missing from the table is ranked at."""
+    known = STAR_PATH_REWARDS.get(star_path_id, {})
+    amounts = [a for a in known.get("duties", []) + [a for week in known.get("weeks", []) for a in week] if a]
+    return statistics.median(amounts) if amounts else None
 
 
 def _reward(star_path_id, amount):

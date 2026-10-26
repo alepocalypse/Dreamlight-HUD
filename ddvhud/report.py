@@ -273,10 +273,11 @@ def _event_duties(save, now):
     list over every open duty, classified or not (duty_plan.duty_plan). actions: Duty mode's Action list over the
     same duties (duty_mode.duty_actions); a duty there carries reward {amount, currency} when its table has one: a
     Star Path duty from the wiki's (duty_text.duty_reward, weekly_duty_reward), a rotating duty from the game's for
-    its set (slot_duties.slot_reward)."""
+    its set (slot_duties.slot_reward), and value, its Reward in Dreamlight-equivalent (duty_mode.duty_value: a
+    Star Path duty without a Reward at its Star Path's duty_text.median_reward, a rotating one at 0)."""
     open_duties, all_open = [], []
 
-    def shown(duties, text, title, week, zoned=False, reward=lambda i: None):
+    def shown(duties, text, title, week, zoned=False, reward=lambda i: None, per_unit=1, fallback=None):
         out = []
         for d in duties:
             if d["state"] not in ("OnGoing", "Completed"):
@@ -292,6 +293,7 @@ def _event_duties(save, now):
                          "target": d["target"], "weekly": week}
                 if reward(d["position"] - 1):
                     entry["reward"] = reward(d["position"] - 1)
+                entry["value"] = duty_mode.duty_value(entry.get("reward"), per_unit, fallback)
                 fam = (duty_requirements.colour_family(shown_text, req)
                        or duty_requirements.hang_out_family(shown_text, d["filter"])
                        or duty_requirements.cook_family(shown_text, d["filter"])
@@ -333,10 +335,12 @@ def _event_duties(save, now):
     for sp in save.star_paths:
         sid = sp["id"]
         title = duty_text.title(sid)
+        median = duty_text.median_reward(sid)
         main = shown(sp["duties"], lambda i: duty_text.duty_text(sid, i), title, None,   # before weekly: shared order
-                     reward=lambda i: duty_text.duty_reward(sid, i))
+                     reward=lambda i: duty_text.duty_reward(sid, i), per_unit=duty_mode.TOKEN_VALUE, fallback=median)
         weekly = [{"week": w, "duties": shown(duties, lambda i, w=w: duty_text.weekly_duty_text(sid, w - 1, i), title, w,
-                                              reward=lambda i, w=w: duty_text.weekly_duty_reward(sid, w - 1, i))}
+                                              reward=lambda i, w=w: duty_text.weekly_duty_reward(sid, w - 1, i),
+                                              per_unit=duty_mode.TOKEN_VALUE, fallback=median)}
                   for w, duties in enumerate(sp["weekly"], 1)]
         paths.append({"id": sid, "title": title, "currency": duty_text.currency_name(sid),
                       "tokens": sp["tokens"], "ends": sp["end_date"],
