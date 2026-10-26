@@ -79,3 +79,24 @@ class Lookup(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Rewards(unittest.TestCase):
+    """Amounts from the wiki's Haunting Elegance Star Path page (2026-10-25): Duties row 1 pays 5, row 6 pays 25;
+    Routine Duties week 1 pays 30, 30, 40; weeks 6 and 7 were still 'Releasing ...'."""
+
+    def test_a_main_duty_pays_the_amount_of_its_row_in_the_star_paths_currency(self):
+        self.assertEqual(duty_text.duty_reward("HauntingElegance2026", 0), {"amount": 5, "currency": "Pumpkin Tokens"})
+        self.assertEqual(duty_text.duty_reward("HauntingElegance2026", 5), {"amount": 25, "currency": "Pumpkin Tokens"})
+
+    def test_a_routine_duty_pays_the_amount_of_its_week_and_slot(self):
+        self.assertEqual(duty_text.weekly_duty_reward("HauntingElegance2026", 0, 2),
+                         {"amount": 40, "currency": "Pumpkin Tokens"})
+        self.assertEqual(duty_text.weekly_duty_reward("HauntingElegance2026", 0, 0),
+                         {"amount": 30, "currency": "Pumpkin Tokens"})
+
+    def test_duties_missing_from_the_table_have_no_reward(self):
+        self.assertIsNone(duty_text.duty_reward("HauntingElegance2026", 500))
+        self.assertIsNone(duty_text.weekly_duty_reward("HauntingElegance2026", 5, 0))   # 'Releasing October 28'
+        self.assertIsNone(duty_text.weekly_duty_reward("HauntingElegance2026", 0, 3))
+        self.assertIsNone(duty_text.duty_reward("NoSuchPath2099", 0))

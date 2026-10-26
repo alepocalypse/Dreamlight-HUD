@@ -85,6 +85,16 @@ class ReportActions(unittest.TestCase):
                                   "Catch 5 Fish": {"amount": 250, "currency": "Mist"},
                                   "Duty #7": None})
 
+    def test_star_path_duties_carry_their_token_reward_and_duties_missing_from_the_table_none(self):
+        progress = {"HauntingElegance2026": {"TasksProgress": [task("OnGoing", 1, 3)] + [task("NotStarted")] * 130
+                                             + [task("OnGoing", 0, 1)],
+                                             "WeeklyTasksProgress": [{"TasksProgress": [task("OnGoing", 0, 30)]}]}}
+        duties = {d["text"]: d.get("reward") for a in build_report({"Player": {"BattlePassStates": {"Progress": progress}}},
+                                                                   NOW)["actions"] for d in a["duties"]}
+        self.assertEqual(duties, {"Uproot Night Thorns.": {"amount": 5, "currency": "Pumpkin Tokens"},
+                                  "Mine 20 orange gems.": {"amount": 30, "currency": "Pumpkin Tokens"},
+                                  "Duty #132": None})
+
 
 
 class DutyPage(unittest.TestCase):

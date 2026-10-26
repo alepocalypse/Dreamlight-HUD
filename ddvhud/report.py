@@ -271,8 +271,9 @@ def _event_duties(save, now):
     from 1, the text table's from 0. shared: the 'do together' groups across them (shared_actions.do_together,
     open duties only), each duty as {path (the Star Path title), text, current, target, weekly (week or None)}. plan: the ordered task
     list over every open duty, classified or not (duty_plan.duty_plan). actions: Duty mode's Action list over the
-    same duties (duty_mode.duty_actions); a rotating duty there carries reward {amount, currency} when the game's
-    table has one for its set (slot_duties.slot_reward)."""
+    same duties (duty_mode.duty_actions); a duty there carries reward {amount, currency} when its table has one: a
+    Star Path duty from the wiki's (duty_text.duty_reward, weekly_duty_reward), a rotating duty from the game's for
+    its set (slot_duties.slot_reward)."""
     open_duties, all_open = [], []
 
     def shown(duties, text, title, week, zoned=False, reward=lambda i: None):
@@ -332,8 +333,10 @@ def _event_duties(save, now):
     for sp in save.star_paths:
         sid = sp["id"]
         title = duty_text.title(sid)
-        main = shown(sp["duties"], lambda i: duty_text.duty_text(sid, i), title, None)   # before weekly: shared order
-        weekly = [{"week": w, "duties": shown(duties, lambda i, w=w: duty_text.weekly_duty_text(sid, w - 1, i), title, w)}
+        main = shown(sp["duties"], lambda i: duty_text.duty_text(sid, i), title, None,   # before weekly: shared order
+                     reward=lambda i: duty_text.duty_reward(sid, i))
+        weekly = [{"week": w, "duties": shown(duties, lambda i, w=w: duty_text.weekly_duty_text(sid, w - 1, i), title, w,
+                                              reward=lambda i, w=w: duty_text.weekly_duty_reward(sid, w - 1, i))}
                   for w, duties in enumerate(sp["weekly"], 1)]
         paths.append({"id": sid, "title": title, "currency": duty_text.currency_name(sid),
                       "tokens": sp["tokens"], "ends": sp["end_date"],
