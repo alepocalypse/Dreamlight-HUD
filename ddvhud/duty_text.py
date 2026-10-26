@@ -10,7 +10,12 @@ both 0-based. No-break spaces are normal spaces.
 To refresh after a game update: python3 tools/gen_duties.py (read-only) prints the STAR_PATHS block
 below; replace it. Unknown ids or positions answer a visible placeholder ('Duty #3' is position 3 shown
 1-based, like the 'Item #id' style elsewhere).
+Rewards (duty_reward, weekly_duty_reward) come from star_path_rewards.py, generated from the wiki by
+tools/gen_star_path_rewards.py, same positions.
 """
+import statistics
+
+from .star_path_rewards import STAR_PATH_REWARDS
 
 STAR_PATHS = {
     'AdventuresInNeverland2025': {
@@ -2067,6 +2072,31 @@ def weekly_duty_text(star_path_id, week, slot):
     if 0 <= week < len(weeks) and 0 <= slot < len(weeks[week]):
         return weeks[week][slot]
     return f"Weekly duty #{week + 1}-{slot + 1}"
+
+
+def duty_reward(star_path_id, position):
+    """{amount, currency (its name)} the duty at 0-based `position` pays, or None when the table lacks it."""
+    duties = STAR_PATH_REWARDS.get(star_path_id, {}).get("duties", [])
+    return _reward(star_path_id, duties[position] if 0 <= position < len(duties) else None)
+
+
+def weekly_duty_reward(star_path_id, week, slot):
+    """{amount, currency} weekly duty `slot` of `week` (both 0-based) pays, or None when the table lacks it."""
+    weeks = STAR_PATH_REWARDS.get(star_path_id, {}).get("weeks", [])
+    amounts = weeks[week] if 0 <= week < len(weeks) else []
+    return _reward(star_path_id, amounts[slot] if 0 <= slot < len(amounts) else None)
+
+
+def median_reward(star_path_id):
+    """The median token amount over the duties and weekly duties the table lists for the Star Path, or None
+    when it lists none: what a duty missing from the table is ranked at."""
+    known = STAR_PATH_REWARDS.get(star_path_id, {})
+    amounts = [a for a in known.get("duties", []) + [a for week in known.get("weeks", []) for a in week] if a]
+    return statistics.median(amounts) if amounts else None
+
+
+def _reward(star_path_id, amount):
+    return {"amount": amount, "currency": currency_name(star_path_id)} if amount else None
 
 
 def title(star_path_id):

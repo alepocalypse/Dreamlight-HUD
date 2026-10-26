@@ -14,6 +14,10 @@ class ShotPlan(unittest.TestCase):
     def test_scheme_and_width_narrow_it(self):
         self.assertEqual(screenshot.shot_plan("dark", 800), [("desktop-800-dark.png", 800, "dark")])
 
+    def test_duty_mode_shots_are_named_for_it(self):
+        self.assertEqual(screenshot.shot_plan("both", 400, duty=True),
+                         [("duty-400-light.png", 400, "light"), ("duty-400-dark.png", 400, "dark")])
+
 
 class VenvReexec(unittest.TestCase):
     def test_reexec_only_when_venv_exists_and_not_already_on_it(self):
@@ -33,6 +37,16 @@ class DemoReport(unittest.TestCase):
         self.assertTrue(any(c["name"].startswith("Companion #") for c in r["companions"]["no_job"]))
         self.assertGreater(len(r["todo"]), 15)
 
+    def test_duty_mode_shows_a_double_a_triple_and_a_quad(self):
+        sizes = {a["size"] for a in screenshot.demo_report()["actions"]}
+        self.assertLessEqual({"Double", "Triple", "Quad", "Single"}, sizes)
+
+    def test_duty_mode_ranks_rotating_duties_at_par_and_an_unknown_one_last_at_zero(self):
+        actions = screenshot.demo_report()["actions"]
+        values = {d["text"]: d["value"] for a in actions for d in a["duties"] if d["path"] in ("Dreamlight Duties", "Mist Duties")}
+        self.assertEqual(values, {"Plant 5 Vegetables": 150, "Catch 3 Fish": 250, "Duty #7": 0})
+        self.assertEqual((actions[-1]["label"], actions[-1]["value"]), ("Duty #7", 0))
+
     def test_profession_cards_show_mixed_and_all_max_states(self):
         cards = screenshot.demo_report()["professions"]
         # a card with Villagers below max and some at max, and one where everyone is at max
@@ -49,6 +63,34 @@ class BrowserRun(unittest.TestCase):
             self.assertIn("Decode OK", page.inner_text("#meta"))
             self.assertEqual(errors, [])
             self.assertFalse(page.evaluate("document.documentElement.scrollWidth > window.innerWidth"))
+
+    def test_duty_mode_renders_badged_cards_and_remembers_its_own_list_choice(self):
+        with pwpage.app_page(width=400, demo=True, path="/duty") as (page, errors):
+            self.assertEqual(page.eval_on_selector_all(".acard .badge", "els => els.map(e => e.textContent)"),
+                             ["Quad", "Triple", "Double"])
+            self.assertEqual(page.inner_text("#unclaimed"), "2 done, claim in game")
+            self.assertIn("Haunting Elegance", page.inner_text("#actions"))
+            page.get_by_label("Haunting Elegance").uncheck()
+            self.assertNotIn("Haunting Elegance", page.inner_text("#actions"))
+            self.assertEqual(page.evaluate("[localStorage.getItem('ddv-dutymode-off'), localStorage.getItem('ddv-duty-off')]"),
+                             ['["Haunting Elegance"]', None])
+            self.assertEqual(errors, [])
+            self.assertFalse(page.evaluate("document.documentElement.scrollWidth > window.innerWidth"))
+
+    def test_duty_mode_shows_each_actions_total_and_re_ranks_when_a_list_is_unticked(self):
+        cards = """els => els.map(c => [(c.querySelector('h3') || c.querySelector('li > span')).firstChild.textContent,
+                                    (c.querySelector('.top .worth') || {}).textContent || null])"""
+        with pwpage.app_page(width=400, demo=True, path="/duty") as (page, errors):
+            self.assertEqual(page.eval_on_selector_all(".acard", cards)[:3],
+                             [["Catch fish at Dazzle Beach", "≈ 600 Dreamlight"], ["Catch 3 Fish", None],
+                              ["Mine blue gems", "≈ 200 Dreamlight"]])
+            page.get_by_label("Haunting Elegance").uncheck()
+            self.assertEqual(page.eval_on_selector_all(".acard", cards), [
+                ["Catch fish at Dazzle Beach", "≈ 350 Dreamlight"], ["Catch 3 Fish", None], ["Mine blue gems", "≈ 150 Dreamlight"],
+                ["Hang out with a mermaid princess", None], ["Plant 5 Vegetables", None],
+                ["Buy something from Scrooge McDuck's Store", None], ["Feed Sea Turtles their favorite food", None],
+                ["Duty #7", None]])
+            self.assertEqual(errors, [])
 
 
 if __name__ == "__main__":

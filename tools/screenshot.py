@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Screenshot the HUD page (Playwright + Chromium), for agents and humans.
 
-    python3 tools/screenshot.py [--demo | --report FILE.json] [--width N]
+    python3 tools/screenshot.py [--demo | --report FILE.json] [--width N] [--duty]
                                    [--scheme light|dark|both] [--out DIR]
 
 Re-runs itself under the project venv (.venv/bin/python) when it exists. Starts its own
@@ -23,10 +23,10 @@ from ddvhud.report import build_report  # noqa: E402
 DEFAULT_WIDTH = 1100  # desktop browser only: there is no phone layout to check
 
 
-def shot_plan(scheme="both", width=DEFAULT_WIDTH):
-    """[(file name, width, scheme)] for the requested colour scheme(s)."""
+def shot_plan(scheme="both", width=DEFAULT_WIDTH, duty=False):
+    """[(file name, width, scheme)] for the requested colour scheme(s); duty: Duty mode's page."""
     schemes = ["light", "dark"] if scheme == "both" else [scheme]
-    return [(f"desktop-{width}-{s}.png", width, s) for s in schemes]
+    return [(f"{'duty' if duty else 'desktop'}-{width}-{s}.png", width, s) for s in schemes]
 
 
 def demo_report():
@@ -77,8 +77,20 @@ def demo_report():
                            {"ItemID": 31700007, "Amount": 5, "State": None}]}}   # Gold Ingot: 20 short
     now = datetime.datetime.now(datetime.timezone.utc)
 
-    def duty(state, cur, target):
-        return {"Objective": {"CurAmount": cur, "TargetAmount": target}, "TaskState": "BattlePassTaskState_" + state}
+    def duty(state, cur, target, data=None):
+        objective = {"CurAmount": cur, "TargetAmount": target}
+        if data:
+            objective["ItemFilter"] = {"Data": data}
+        return {"Objective": objective, "TaskState": "BattlePassTaskState_" + state}
+
+    def slot(i, duty_id, target):
+        return {"SlotId": i, "DutyId": duty_id, "State": "DutySlotState_OnGoing",
+                "StepData": {"ItemFilter": {"Data": None}, "TargetAmount": target, "curAmount": 0}}
+
+    fish, gems = {"ActivityItemType": "ActivityItemType_Fish"}, {"ActivityItemType": "ActivityItemType_Mineral"}
+    beach = {**fish, "FishLocation": {"UseField": True, "Value": ["Location_Beach"]}}
+    blue = {**gems, "Tags": [2000700000]}
+    idle = [duty("NotStarted", 0, 5)]
 
     profile = {
         "LastDailyReset": "2026-10-19T05:00:00Z",
@@ -91,14 +103,25 @@ def demo_report():
                                {"CritterItemID": 120100004, "NumberOfFeedingDone": 3},
                                {"CritterItemID": 129999999, "NumberOfFeedingDone": 1}]},
         "Player": {
-            "BattlePassStates": {"Progress": {   # a Star Path with a done duty, a claimed one and a weekly set
+            # two Star Paths with a done duty, a claimed one and weekly sets; for Duty mode a Quad (any fish x3 +
+            # Dazzle Beach fish), a Triple (gems x2 + blue gems) and a Double (Scrooge in both Star Paths)
+            "BattlePassStates": {"Progress": {
                 "Seafaring2026": {
                     "CurrencyAmount": 35,
                     "EndDate": (now + datetime.timedelta(days=12, hours=3)).isoformat(),
-                    "TasksProgress": [duty("OnGoing", 2, 10), duty("Completed", 15, 15), duty("CurrencyClaimed", 1, 1),
-                                      duty("NotStarted", 0, 5), duty("OnGoing", 14, 15)],
-                    "WeeklyTasksProgress": [{"TasksProgress": [duty("CurrencyClaimed", 20, 20)]},
-                                            {"TasksProgress": [duty("OnGoing", 3, 20), duty("Completed", 5, 5)]}]}}},
+                    "TasksProgress": [duty("OnGoing", 2, 10, fish), duty("Completed", 15, 15), duty("CurrencyClaimed", 1, 1),
+                                      duty("OnGoing", 1, 5, gems), duty("OnGoing", 14, 15), duty("OnGoing", 0, 1),
+                                      duty("OnGoing", 3, 10, beach), duty("OnGoing", 2, 5, blue)],
+                    "WeeklyTasksProgress": [{"TasksProgress": [duty("OnGoing", 8, 20, fish)]},
+                                            {"TasksProgress": [duty("OnGoing", 3, 20), duty("Completed", 5, 5)]}]},
+                "HauntingElegance2026": {
+                    "CurrencyAmount": 120,
+                    "EndDate": (now + datetime.timedelta(days=30)).isoformat(),
+                    "TasksProgress": idle * 4 + [duty("OnGoing", 4, 10, gems), duty("OnGoing", 1, 5, fish)]
+                    + idle * 7 + [duty("OnGoing", 0, 2)]}}},
+            # Dreamlight Duties and Mist Duties: Rewards at par with Dreamlight, and an id the game table lacks (ranks 0, last)
+            "DutySlots": {"1540000000": {"Slots": [slot(0, 2110000034, 5), slot(1, 7, 1)]},
+                          "1540000101": {"Slots": [slot(0, 2110000040, 3)]}},
             "ContainerInventories": containers,
             "AssignedPets": [120000013, 120000001, 120000099],
             "Pets": [{"PetItemID": 120000002, "FriendshipLevel": 5},
@@ -120,6 +143,8 @@ def main(argv=None):
     src.add_argument("--demo", action="store_true", help="render a built-in synthetic report")
     p.add_argument("--width", type=int, default=DEFAULT_WIDTH,
                    help="viewport width in px (default 1100; e.g. 800 for a half-screen window)")
+    p.add_argument("--duty", action="store_true",
+                   help="shoot Duty mode (/duty) instead of the full HUD; try --width 400")
     p.add_argument("--scheme", choices=["light", "dark", "both"], default="both")
     p.add_argument("--out", help="output folder (default /tmp/ddv-shots-<timestamp>)")
     p.add_argument("--save", default=pwpage.app.DEFAULT_ROOT, help="save folder or profile.json (real-save mode)")
@@ -139,8 +164,9 @@ def main(argv=None):
     os.makedirs(out, exist_ok=True)
     js_errors = False
     try:
-        for name, width, scheme in shot_plan(a.scheme, a.width):
-            with pwpage.app_page(width=width, scheme=scheme, report=report, demo=a.demo, save=a.save) as (page, errs):
+        for name, width, scheme in shot_plan(a.scheme, a.width, a.duty):
+            with pwpage.app_page(width=width, scheme=scheme, report=report, demo=a.demo, save=a.save,
+                                 path="/duty" if a.duty else "/") as (page, errs):
                 path = os.path.join(out, name)
                 page.screenshot(path=path, full_page=True)
                 overflow = page.evaluate("document.documentElement.scrollWidth > window.innerWidth")

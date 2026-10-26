@@ -55,3 +55,37 @@ The player's carried inventory (`ContainerInventories` container ID 0). Not a Ch
 
 **Gather For Chests**:
 The card listing the raw materials still short for crafting 5 Large Chests (25 Dark Wood and 5 Gold Ingot each). Absent once 5 can be crafted from everything the player holds.
+
+**Duty**:
+One task from a Duty list, with a progress count toward a target ("Catch 5 Fish", 2/5). Open until the count reaches the target; it then pays its Reward.
+_Avoid_: task, quest
+
+**Duty list**:
+Where a Duty comes from: a Star Path, the Dreamlight Duties or the Mist Duties. The player chooses which Duty lists the HUD follows.
+_Avoid_: path, duty tree, event
+
+**Star Path**:
+A time-limited event with its own token currency and its own Duties, some fixed for the whole event and some Routine duties.
+
+**Routine duty**:
+A Star Path Duty that belongs to one week of the Star Path; three new ones arrive each week, as the game names them.
+_Avoid_: weekly duty
+
+**Dreamlight Duties**:
+The rotating Duty list of the Valley, paying Dreamlight.
+
+**Mist Duties**:
+The rotating Duty list of Eternity Isle, paying Mist.
+
+**Reward**:
+What a Duty pays once complete, in its Duty list's currency (Star Path tokens, Dreamlight or Mist).
+
+**Action**:
+One thing to do in the game that advances one or more open Duties at once, such as catching a fish at Dazzle Beach when both "Catch any fish" and "Catch fish at Dazzle Beach" are open. The unit the task list and Duty mode show. An Action lasts only while every Duty it advances is open: once one finishes, the rest stand on their own again.
+_Avoid_: group, combo
+
+**Size**:
+How many open Duties one Action advances: Single (1), Double (2), Triple (3) or Quad (4 or more).
+
+**Duty mode**:
+A narrow view of the HUD that shows only the Actions for the Duty lists the player follows, ranked by Reward.

@@ -1,7 +1,7 @@
 """Report builder: decoded profile dict + current time -> plain HUD data."""
 import math
 
-from . import catalog, duty_plan, duty_requirements, duty_text, shared_actions, slot_duties, stock_zones
+from . import catalog, duty_mode, duty_plan, duty_requirements, duty_text, shared_actions, slot_duties, stock_zones
 from .companions import COMPANIONS, JOBS  # COMPANIONS: tests patch the table in place through this name
 from .ingredients import CATEGORIES
 from .recipes import RECIPES
@@ -264,16 +264,20 @@ def _days_left(ends, now):
 
 
 def _event_duties(save, now):
-    """(star_paths, shared, plan). star_paths: one entry per Star Path, then one per rotating duty set (Dreamlight Duties, Mist Duties: tokens and ends None, no weekly): [{id, title, currency, tokens, ends, days_left, duties, weekly}]. duties: the OnGoing and
+    """(star_paths, shared, plan, actions). star_paths: one entry per Star Path, then one per rotating duty set (Dreamlight Duties, Mist Duties: tokens and ends None, no weekly): [{id, title, currency, tokens, ends, days_left, duties, weekly}]. duties: the OnGoing and
     Completed-but-unclaimed duties as {text, current, target, done, requires}, requires (see
     duty_requirements.Requirement.to_json) only for the duties it could classify; weekly: [{week (from 1), duties}] for every
     week that has any such duty. NotStarted and CurrencyClaimed duties are left out. The save's positions count
     from 1, the text table's from 0. shared: the 'do together' groups across them (shared_actions.do_together,
     open duties only), each duty as {path (the Star Path title), text, current, target, weekly (week or None)}. plan: the ordered task
-    list over every open duty, classified or not (duty_plan.duty_plan)."""
+    list over every open duty, classified or not (duty_plan.duty_plan). actions: Duty mode's Action list over the
+    same duties (duty_mode.duty_actions); a duty there carries reward {amount, currency} when its table has one: a
+    Star Path duty from the wiki's (duty_text.duty_reward, weekly_duty_reward), a rotating duty from the game's for
+    its set (slot_duties.slot_reward), and value, its Reward in Dreamlight-equivalent (duty_mode.duty_value: a
+    Star Path duty without a Reward at its Star Path's duty_text.median_reward, a rotating one at 0)."""
     open_duties, all_open = [], []
 
-    def shown(duties, text, title, week, zoned=False):
+    def shown(duties, text, title, week, zoned=False, reward=lambda i: None, per_unit=1, fallback=None):
         out = []
         for d in duties:
             if d["state"] not in ("OnGoing", "Completed"):
@@ -287,6 +291,9 @@ def _event_duties(save, now):
             if not duty["done"]:
                 entry = {"path": title, "text": shown_text, "current": d["current"],
                          "target": d["target"], "weekly": week}
+                if reward(d["position"] - 1):
+                    entry["reward"] = reward(d["position"] - 1)
+                entry["value"] = duty_mode.duty_value(entry.get("reward"), per_unit, fallback)
                 fam = (duty_requirements.colour_family(shown_text, req)
                        or duty_requirements.hang_out_family(shown_text, d["filter"])
                        or duty_requirements.cook_family(shown_text, d["filter"])
@@ -328,8 +335,12 @@ def _event_duties(save, now):
     for sp in save.star_paths:
         sid = sp["id"]
         title = duty_text.title(sid)
-        main = shown(sp["duties"], lambda i: duty_text.duty_text(sid, i), title, None)   # before weekly: shared order
-        weekly = [{"week": w, "duties": shown(duties, lambda i, w=w: duty_text.weekly_duty_text(sid, w - 1, i), title, w)}
+        median = duty_text.median_reward(sid)
+        main = shown(sp["duties"], lambda i: duty_text.duty_text(sid, i), title, None,   # before weekly: shared order
+                     reward=lambda i: duty_text.duty_reward(sid, i), per_unit=duty_mode.TOKEN_VALUE, fallback=median)
+        weekly = [{"week": w, "duties": shown(duties, lambda i, w=w: duty_text.weekly_duty_text(sid, w - 1, i), title, w,
+                                              reward=lambda i, w=w: duty_text.weekly_duty_reward(sid, w - 1, i),
+                                              per_unit=duty_mode.TOKEN_VALUE, fallback=median)}
                   for w, duties in enumerate(sp["weekly"], 1)]
         paths.append({"id": sid, "title": title, "currency": duty_text.currency_name(sid),
                       "tokens": sp["tokens"], "ends": sp["end_date"],
@@ -341,18 +352,19 @@ def _event_duties(save, now):
         title = slot_duties.slot_title(dset["key"])
         text = lambda i, by_pos=by_pos: slot_duties.slot_duty_text(by_pos[i + 1]["duty_id"], by_pos[i + 1]["target"],
                                                                    by_pos[i + 1]["filter"])
+        reward = lambda i, by_pos=by_pos, key=dset["key"]: slot_duties.slot_reward(by_pos[i + 1]["duty_id"], key)
         paths.append({"id": "DutySlots" + dset["key"], "title": title, "currency": "", "tokens": None, "ends": None,
                       "days_left": None,
-                      "duties": shown(dset["duties"], text, title, None, zoned=True), "weekly": []})
+                      "duties": shown(dset["duties"], text, title, None, zoned=True, reward=reward), "weekly": []})
     shared = shared_actions.do_together(open_duties)
-    return paths, shared, duty_plan.duty_plan(all_open, shared)
+    return paths, shared, duty_plan.duty_plan(all_open, shared), duty_mode.duty_actions(all_open, shared)
 
 
 def build_report(profile, now):
     save = SaveView(profile)
     roster = Roster(save, VILLAGERS)
     villagers = roster.villagers
-    event_duties, shared, plan = _event_duties(save, now)
+    event_duties, shared, plan, actions = _event_duties(save, now)
     cook = _cook_list(roster, save.inventory.owned, save.known_meals)
     return {
         "summary": {
@@ -378,4 +390,5 @@ def build_report(profile, now):
         "event_duties": event_duties,
         "shared": shared,
         "plan": plan,
+        "actions": actions,
     }

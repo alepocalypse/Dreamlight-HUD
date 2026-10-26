@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Duty mode</title>
+<style>
+:root{--bg:#14121f;--fg:#eee;--card:#231f3a;--line:#3a3560;--muted:#aab;--link:#8ab4ff;--ok:#7fd99a;--soft:#d2d0e6;--edge:#3a3560;--shadow:none;--double:#7fd99a;--triple:#6aa8ff;--quad:#b58cff}
+@media (prefers-color-scheme:light){:root{--bg:#ebe8f5;--fg:#1c1830;--card:#fff;--line:#d9d4ec;--muted:#5a5775;--link:#1a55c8;--ok:#1b7a3a;--soft:#35324f;--edge:#c3bde0;--shadow:0 1px 3px rgba(40,30,90,.14);--double:#1b7a3a;--triple:#1a55c8;--quad:#7a3fc4}}
+/* A narrow column for a window about 400 px wide. Same spacing scale as the full HUD: 4 / 8 / 12 / 16 / 24 px. */
+body{font:16px system-ui,sans-serif;margin:16px;background:var(--bg);color:var(--fg)}
+main{max-width:520px}
+#head{display:flex;align-items:baseline;gap:8px 16px}
+h1{font-size:1.15rem;margin:0}
+#head a{margin-left:auto;color:var(--link);font-size:.9rem}
+#pathinfo{color:var(--soft);font-size:.9rem;margin:12px 0 0;display:flex;flex-direction:column;gap:4px}
+#dutyfilter{display:flex;flex-wrap:wrap;gap:4px 16px;font-size:.9rem;margin:12px 0}
+#dutyfilter label{display:flex;align-items:center;gap:4px;cursor:pointer}
+#actions{display:flex;flex-direction:column;gap:12px}
+/* one card per Action; Double / Triple / Quad get a badge and a coloured left edge, Singles stay plain */
+.acard{background:var(--card);border:1px solid var(--edge);box-shadow:var(--shadow);border-radius:8px;padding:10px 12px;display:flex;flex-direction:column;gap:6px;min-width:0}
+.acard.double{border-left:4px solid var(--double)}
+.acard.triple{border-left:4px solid var(--triple)}
+.acard.quad{border-left:4px solid var(--quad)}
+.acard .top{display:flex;align-items:baseline;gap:8px}
+.acard h3{font-size:1rem;margin:0;flex:1;min-width:0;overflow-wrap:anywhere}
+.acard .badge{flex:none;font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;border:1px solid currentColor;border-radius:4px;padding:1px 6px}
+.acard.double .badge{color:var(--double)}
+.acard.triple .badge{color:var(--triple)}
+.acard.quad .badge{color:var(--quad)}
+.worth{flex:none;color:var(--soft);font-size:.8rem;white-space:nowrap}
+.acard ul{list-style:none;margin:0;padding:0;font-size:.9rem}
+.acard li{display:flex;gap:8px;justify-content:space-between;padding:2px 0;overflow-wrap:anywhere;border-top:1px solid var(--line)}
+.acard li>span:first-child{min-width:0}
+.acard li>span:last-child{white-space:nowrap;color:var(--soft)}
+.acard.single li{border-top:0;padding:0;font-size:1rem}   /* a Single's one Duty is its title: no heading repeating it */
+.acard.single li>span:first-child{font-weight:600}
+.acard.single .req{font-weight:400}
+.req{display:block;color:var(--muted);font-size:.75rem;padding-left:12px}
+.req.list{padding-left:0}
+.req.reward{padding-left:0;text-align:right}
+.zones{color:var(--ok)}
+#none{color:var(--soft);font-size:.95rem}
+#unclaimed{color:var(--ok);font-size:.9rem;margin-top:16px}
+#err{background:#6b1d1d;color:#fff;padding:10px;border-radius:8px;display:none;margin-bottom:12px}
+.pick{background:#fff;color:#6b1d1d;border:0;border-radius:6px;padding:4px 10px;margin-left:10px;cursor:pointer;font:inherit}
+#meta{color:var(--soft);margin-top:16px;padding-top:12px;border-top:1px solid var(--edge);font-size:.85rem}
+</style></head><body><main>
+<div id="err"></div>
+<div id="head"><h1>Duty mode</h1><a href="/">Full HUD</a></div>
+<div id="pathinfo"></div>
+<div id="dutyfilter"></div>
+<div id="actions"></div>
+<div id="unclaimed"></div>
+<div id="meta"></div>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+// A checkbox per Duty list hides its Duties; remembered in this browser apart from the full HUD's choice.
+const OFF_KEY='ddv-dutymode-off';
+function disabledLists(){try{return new Set(JSON.parse(localStorage.getItem(OFF_KEY)||'[]'));}catch(e){return new Set();}}
+let last=null;
+const SIZES=['Single','Single','Double','Triple'];   // by open Duty count; 4 or more is Quad
+const sizeOf=n=>SIZES[n]||'Quad';
+const tidy=t=>t.replace(/\.$/,'');
+const key=d=>d.path+'\n'+d.text+'\n'+d.weekly;
+const MAX_ZONES=5;
+function small(text,cls){const z=document.createElement('small');z.className='req'+(cls?' '+cls:'');z.textContent=text;return z;}
+// The report's Actions without the hidden lists' Duties: an Action left with one Duty becomes that Duty's Single,
+// dropped when the Duty already shows under a remaining Action. Re-ranked as the server ranks: by the shown Duties'
+// summed value (Dreamlight-equivalent), then Size, then the report's order (a stable sort).
+const worthOf=a=>a.duties.reduce((n,d)=>n+(d.value||0),0);
+function shownActions(r,off){
+  const acts=(r.actions||[]).map(a=>({...a,duties:a.duties.filter(d=>!off.has(d.path))})).filter(a=>a.duties.length)
+    .map(a=>a.duties.length===1?{...a,size:'Single',label:a.duties[0].text}:{...a,size:sizeOf(a.duties.length)});
+  const inGroup=new Set(acts.filter(a=>a.duties.length>1).flatMap(a=>a.duties.map(key))),seen=new Set();
+  return acts.filter(a=>{
+    if(a.duties.length>1)return true;
+    const k=key(a.duties[0]);if(inGroup.has(k)||seen.has(k))return false;seen.add(k);return true;
+  }).map(a=>({...a,value:worthOf(a)})).sort((x,y)=>y.value-x.value||y.duties.length-x.duties.length);
+}
+const WORTH_TIP='Reward in Dreamlight-equivalent: 1 Star Path token = 10 Dreamlight; Dreamlight, Mist and Storybook Magic at par';
+function worth(n){const w=document.createElement('span');w.className='worth';w.textContent='≈ '+n+' Dreamlight';w.title=WORTH_TIP;return w;}
+function dutyRow(d,single){
+  const li=document.createElement('li');
+  const tx=document.createElement('span');tx.textContent=tidy(d.text);
+  tx.append(small(d.path+(d.weekly?' (week '+d.weekly+')':''),'list'));
+  if(d.food)tx.append(small(d.food));
+  if(d.spot)tx.append(small(d.spot,'zones'));
+  if(d.zones&&d.zones.length)tx.append(small(d.zones.slice(0,MAX_ZONES).join(', ')+(d.zones.length>MAX_ZONES?' +'+(d.zones.length-MAX_ZONES)+' more':''),'zones'));
+  if(d.grows)tx.append(small('Grows faster in: '+d.grows.join(', ')));
+  const n=document.createElement('span');n.textContent=(d.target-d.current)+' more';n.title=d.current+'/'+d.target;
+  if(d.reward)n.append(small(d.reward.amount+' '+d.reward.currency,'reward'));
+  if(single&&d.value&&d.value!==(d.reward&&d.reward.amount)){   // tokens, or a Star Path Duty ranked at its median
+    const w=small('≈ '+d.value+' Dreamlight','reward');w.title=WORTH_TIP+(d.reward?'':' (no Reward listed: this Star Path\'s median)');n.append(w);}
+  li.append(tx,n);return li;
+}
+function actionCard(a){
+  const c=document.createElement('div');c.className='acard '+a.size.toLowerCase();
+  if(a.size==='Single'){const ul=document.createElement('ul');ul.append(dutyRow(a.duties[0],true));c.append(ul);return c;}
+  const top=document.createElement('div');top.className='top';
+  const h=document.createElement('h3');h.textContent=tidy(a.label);top.append(h);
+  top.append(worth(a.value));
+  const b=document.createElement('span');b.className='badge';b.textContent=a.size;top.append(b);
+  const ul=document.createElement('ul');a.duties.forEach(d=>ul.append(dutyRow(d)));
+  c.append(top,ul);return c;
+}
+function render(){
+  const r=last;if(!r)return;
+  const off=disabledLists(),lists=r.event_duties||[];
+  $('pathinfo').replaceChildren(...lists.filter(e=>e.tokens!=null&&!off.has(e.title)).map(e=>{
+    const d=document.createElement('div');const b=document.createElement('b');b.textContent=e.title;d.append(b);
+    const bits=[];
+    if(e.days_left!=null)bits.push(e.days_left===0?'ends today':e.days_left+(e.days_left===1?' day left':' days left'));
+    bits.push(e.tokens+' '+e.currency);
+    d.append(' · '+bits.join(' · '));return d;
+  }));
+  $('dutyfilter').replaceChildren(...lists.map(e=>{
+    const l=document.createElement('label');const c=document.createElement('input');c.type='checkbox';c.checked=!off.has(e.title);
+    c.addEventListener('change',()=>{const o=disabledLists();c.checked?o.delete(e.title):o.add(e.title);
+      try{localStorage.setItem(OFF_KEY,JSON.stringify([...o]));}catch(err){}render();});
+    l.append(c,' '+e.title);return l;
+  }));
+  const acts=shownActions(r,off);
+  if(acts.length)$('actions').replaceChildren(...acts.map(actionCard));
+  else{const p=document.createElement('p');p.id='none';p.textContent='No open Duties in the lists you follow.';$('actions').replaceChildren(p);}
+  const done=lists.filter(e=>!off.has(e.title)).flatMap(e=>[...e.duties,...e.weekly.flatMap(w=>w.duties)]).filter(d=>d.done).length;
+  $('unclaimed').textContent=done?done+' done, claim in game':'';
+}
+let canPick=false;
+async function pickSave(){
+  try{const r=await (await fetch('/pick-save',{method:'POST'})).json();if(r.picked)tick();}catch(e){}
+}
+// Show the error and blank all data, so old numbers never pass as current.
+function fail(msg,status,written){
+  $('err').style.display='block';$('err').textContent=msg;
+  if(canPick){const b=document.createElement('button');b.className='pick';b.textContent='Choose save folder…';b.onclick=pickSave;$('err').append(b);}
+  last=null;['pathinfo','dutyfilter','actions'].forEach(id=>$(id).replaceChildren());$('unclaimed').textContent='';
+  $('meta').textContent=(written?'Save last written '+new Date(written).toLocaleString()+' | ':'')+status;
+}
+async function tick(){
+  try{
+    const r=await (await fetch('/report.json')).json();
+    canPick=!!r.can_pick_save;
+    if(r.status!=='ok'){fail(r.message,r.status==='decode_failed'?'Decode FAILED':'No save found',r.save_written);return;}
+    $('err').style.display='none';
+    last=r;render();
+    $('meta').textContent='Save last written '+new Date(r.save_written).toLocaleString()+' | Decode OK';
+  }catch(e){fail('Server unreachable','Unknown');}
+}
+tick();setInterval(tick,5000);   // the full HUD's cadence
+</script>
+</body></html>

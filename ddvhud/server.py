@@ -13,6 +13,7 @@ from . import app, config
 _BASE = os.path.join(getattr(sys, "_MEIPASS", os.path.dirname(os.path.dirname(__file__))), "ddvhud")
 _STATIC = os.path.join(_BASE, "static")
 PAGE = os.path.join(_STATIC, "index.html")
+DUTY_PAGE = os.path.join(_STATIC, "duty.html")   # Duty mode: the narrow Action list, same /report.json
 
 # One row per served asset folder: (URL prefix, folder, filename pattern). PNG only.
 ASSET_ROUTES = [
@@ -54,8 +55,8 @@ def make_handler(root_or_file, picker=None, config_file=None):
             self.wfile.write(body)
 
         def do_GET(self):
-            if self.path in ("/", "/index.html"):
-                with open(PAGE, "rb") as f:
+            if self.path in ("/", "/index.html", "/duty"):
+                with open(DUTY_PAGE if self.path == "/duty" else PAGE, "rb") as f:
                     self._send(200, "text/html; charset=utf-8", f.read())
             elif self.path == "/report.json":
                 self._send(200, "application/json", json.dumps(self.report()).encode())
@@ -90,6 +91,11 @@ def make_handler(root_or_file, picker=None, config_file=None):
 
 def make_server(root_or_file, port, picker=None):
     return ThreadingHTTPServer(("127.0.0.1", port), make_handler(root_or_file, picker))
+
+
+def window_spec(port, duty=False):
+    """(url, width, height) of window mode's window: the full HUD, or with `duty` a narrow one into Duty mode."""
+    return (f"http://127.0.0.1:{port}/duty", 400, 900) if duty else (f"http://127.0.0.1:{port}/", 1100, 900)
 
 
 def serve(root_or_file, port):

@@ -20,6 +20,14 @@ Use the checkboxes to hide a Star Path you are not playing.
 
 ![Event duties](docs/screenshots/event-duties.png)
 
+**Duty mode.** A narrow page (the "Duty mode" link at the top) with only the duties of the lists you
+follow, one card per action, the most rewarding first. Each card counts how many duties that one action
+advances (Double, Triple, Quad) and its total reward in Dreamlight, counting a Star Path token as 10
+Dreamlight and Mist or Storybook Magic at par. A Star Path duty whose reward is not known yet counts at that
+Star Path's typical reward. Start it in its own small window with `--duty`.
+
+![Duty mode](docs/screenshots/duty-mode.png)
+
 **Companions by job.** Which Companions you have unlocked for each Job, which are equipped, and how far
 each Critter has been fed. A green outline means you have enough level 5 Companions for this Job
 to equip two of them.
@@ -56,6 +64,7 @@ If your save is not found, use **Choose save folder…** and pick the folder tha
 
     pip install cryptography            # needed to decrypt the save file (plus pywebview for window mode)
     python3 -m ddvhud --window          # own window
+    python3 -m ddvhud --duty            # narrow window straight into Duty mode (also at /duty)
     python3 -m ddvhud --port 8765       # browser at http://127.0.0.1:8765/
     python3 -m ddvhud --save PATH       # save folder or profile.json
 
