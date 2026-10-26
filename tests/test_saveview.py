@@ -155,6 +155,34 @@ def areas(**by_key):
     return {"Villages": [{"Areas": {k[1:]: v for k, v in by_key.items()}}]}
 
 
+def boat(level=10, collect="2026-10-19T10:00:00Z"):
+    return {"ItemID": 20100002, "State": {"FishingStallData": {"UpgradeState": {"Level": level}, "LastCollect": collect,
+                                                               "PendingFishes": []}}}
+
+
+class Boats(unittest.TestCase):
+    def test_a_boat_is_its_area_level_and_last_collect(self):
+        w = world({**grids({"a": {"ID": 9, "Objects": {"451": boat(11, "2026-10-23T20:03:15.088970900Z")}}}),
+                   "Villages": [{"Areas": {"0": {"GridIDs": [9]}}}]})
+        self.assertEqual(w.boats, [{"area": 0, "level": 11,
+                                    "last_collect": datetime(2026, 10, 23, 20, 3, 15, 88970, tzinfo=timezone.utc)}])
+
+    def test_a_boat_in_no_listed_area_and_missing_data_give_defaults(self):
+        w = world(grids({"a": {"ID": 9, "Objects": {"1": {"ItemID": 20100002, "State": {"FishingStallData": {}}},
+                                                   "2": boat(collect=None), "3": boat(level="x")}}}))
+        self.assertEqual(w.boats, [{"area": None, "level": 0, "last_collect": None},
+                                   {"area": None, "level": 10, "last_collect": None},
+                                   {"area": None, "level": 0,
+                                    "last_collect": datetime(2026, 10, 19, 10, tzinfo=timezone.utc)}])
+
+    def test_objects_without_fishing_stall_data_are_not_boats(self):
+        w = world(grids({"a": {"ID": 9, "Objects": {"1": {"ItemID": 20100002, "State": {"FishingStallData": "junk"}},
+                                                   "2": {"ItemID": 20100002, "State": {"StallData": {}}},
+                                                   "3": {"ItemID": 7}}}}))
+        self.assertEqual(w.boats, [])
+        self.assertEqual(SaveView({}).world.boats, [])
+
+
 class SpecialRocks(unittest.TestCase):
     def test_an_area_with_an_unmined_special_rock_maps_to_its_mining_data(self):
         w = world(areas(a7={"MiningRocks": [{"LastHit": "t"}, special(2050200029)]}, a2={"MiningRocks": [{}]}))
@@ -220,6 +248,27 @@ class WildCrops(unittest.TestCase):
         self.assertEqual(SaveView({}).world.wild_crops, {})
 
 
+class FruitTrees(unittest.TestCase):
+    def test_fruit_trees_give_their_seed_and_when_the_fruit_is_ready_per_area(self):
+        w = world({**areas(a2={"GridIDs": [8]}, a8={"GridIDs": [9]}),
+                   **grids({"8": {"ID": 8, "Objects": [wild_plot(30400029, "2022-11-28T01:40:07.123456700Z", left=-1, item=20200002),
+                                                       wild_plot(30400029, "2026-10-23T21:41:04Z", left=-1, item=20200002)]},
+                            "9": {"ID": 9, "Objects": [wild_plot(30400074, "2026-10-20T01:05:10Z", left=-1, item=20200002)]}})})
+        self.assertEqual(sorted(w.fruit_trees[2][30400029]),
+                         [datetime(2022, 11, 28, 1, 40, 7, 123456, tzinfo=timezone.utc), datetime(2026, 10, 23, 21, 41, 4, tzinfo=timezone.utc)])
+        self.assertEqual(w.fruit_trees[8], {30400074: [datetime(2026, 10, 20, 1, 5, 10, tzinfo=timezone.utc)]})
+        self.assertEqual(w.wild_crops, {})
+
+    def test_other_gardens_and_odd_trees_are_not_fruit_trees(self):
+        w = world({**areas(a2={"GridIDs": [8]}),
+                   **grids({"8": {"ID": 8, "Objects": [wild_plot(30400029, "2026-10-21T00:00:00Z", left=-1),   # a wild patch
+                                                       wild_plot(30400029, "2026-10-21T00:00:00Z", left=0, item=20200002),
+                                                       wild_plot(0, "2026-10-21T00:00:00Z", left=-1, item=20200002),
+                                                       wild_plot(30400029, None, left=-1, item=20200002)]}})})
+        self.assertEqual(w.fruit_trees, {})
+        self.assertEqual(SaveView({}).world.fruit_trees, {})
+
+
 def ripple(rarity, area):
     return {"Rarity": "FishRippleRarity_" + rarity, "Location": {"VillageArea": "VillageAreaType_" + area}}
 
@@ -272,6 +321,21 @@ def companions(player=None, world=None):
     if world is not None:
         profile["World"] = world
     return SaveView(profile).companions
+
+
+class Achievements(unittest.TestCase):
+    def test_achievements_map_id_to_count_claimed_milestone_and_state(self):
+        v = SaveView({"Player": {"AchievementsData": [
+            {"AchievementID": 2110100132, "CurAmount": 1, "ClaimedRewardMilestone": 0, "State": "AchievementState_OnGoing"},
+            {"AchievementID": 2110100136, "CurAmount": 100, "ClaimedRewardMilestone": 100, "State": "AchievementState_Completed"}]}})
+        self.assertEqual(v.achievements, {2110100132: {"current": 1, "claimed": 0, "state": "OnGoing"},
+                                          2110100136: {"current": 100, "claimed": 100, "state": "Completed"}})
+
+    def test_missing_fields_default_and_odd_entries_are_skipped(self):
+        v = SaveView({"Player": {"AchievementsData": [{"AchievementID": 7}, {"CurAmount": 3}, None, "x"]}})
+        self.assertEqual(v.achievements, {7: {"current": 0, "claimed": 0, "state": ""}})
+        self.assertEqual(SaveView({}).achievements, {})
+        self.assertEqual(SaveView({"Player": {"AchievementsData": {"7": 1}}}).achievements, {})
 
 
 class Unlocked(unittest.TestCase):

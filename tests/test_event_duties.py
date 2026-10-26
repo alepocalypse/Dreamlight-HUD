@@ -29,6 +29,32 @@ SCROOGE_BOTH = {"Seafaring2026": {"TasksProgress": [task("NotStarted")] * 5 + [t
                 "HauntingElegance2026": {"TasksProgress": [task("NotStarted")] * 13 + [task("OnGoing", 2, 4)]}}
 
 
+def event_report(achievements, now=datetime(2026, 10, 26, 22, 0, tzinfo=timezone.utc)):
+    return build_report({"Player": {"AchievementsData": [
+        {"AchievementID": i, "CurAmount": c, "ClaimedRewardMilestone": m, "State": "AchievementState_OnGoing"}
+        for i, c, m in achievements]}}, now)
+
+
+class SeasonalEvent(unittest.TestCase):
+    def test_a_running_event_is_a_duty_list_after_the_star_paths_with_hints_and_days_left(self):
+        r = event_report([(2110100132, 1, 0), (2110100133, 0, 0), (2110100136, 100, 100)])
+        [ev] = r["event_duties"]
+        self.assertEqual((ev["id"], ev["title"], ev["tokens"], ev["days_left"]), ("EventHalloween", "Trick-or-Treat Event", None, 5))
+        self.assertEqual(ev["duties"], [
+            {"text": "Sugar Rush", "current": 1, "target": 15, "done": False, "hint": "Eat a lot of Candies!"},
+            {"text": "Trick or Treat", "current": 0, "target": 10, "done": False, "hint": "Distribute Candies to Villagers!"}])
+
+    def test_event_duties_are_singles_in_duty_mode_with_their_item_reward_at_no_dreamlight_value(self):
+        r = event_report([(2110100133, 0, 0)])
+        [a] = r["actions"]
+        self.assertEqual((a["size"], a["label"], a["value"]), ("Single", "Trick or Treat", 0))
+        self.assertEqual(a["duties"][0]["reward"], {"amount": 1, "currency": "Mickey Mouse Pumpkin"})
+        self.assertEqual(a["duties"][0]["hint"], "Distribute Candies to Villagers!")
+
+    def test_no_list_once_the_event_is_over(self):
+        self.assertEqual(event_report([(2110100132, 1, 0)], datetime(2026, 11, 2, tzinfo=timezone.utc))["event_duties"], [])
+
+
 class EventDuties(unittest.TestCase):
     def test_duty_text_is_looked_up_from_zero_based_position(self):
         tasks = [task("OnGoing", 1, 10)] + [task("NotStarted")] * 6 + [task("OnGoing", 2, 5)]

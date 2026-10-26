@@ -1,5 +1,5 @@
 import unittest
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from ddvhud.report import SHOW_MIN_WOOD, build_report
 
@@ -634,6 +634,50 @@ def lines(g):
     return {l["name"]: l for l in g["lines"]}
 
 
+APPLE_TREE, APPLE, STRAWBERRY_TREE, STRAWBERRY = 30400029, 30200002, 30400074, 30200019
+
+
+def tree(seed, ready="2022-11-28T01:40:07Z"):
+    return {"ItemID": 20200002, "State": {"GardenData": {"Slots": [
+        {"PlantedSeedItemID": seed, "Harvest": {"EndOfGrowth": ready, "NumberOfProductionLeft": -1}}]}}}
+
+
+def fruit(held=None, trees=None):
+    """trees: {area key: [tree objects]}; one grid per area."""
+    trees = trees or {2: [tree(APPLE_TREE)]}
+    grids = {str(a): {"ID": a, "Objects": objs} for a, objs in trees.items()}
+    p = {"World": {"Characters": [], "GridCollection": {"Grids": grids},
+                   "Villages": [{"Areas": {str(a): {"GridIDs": [a]} for a in trees}}]},
+         "Player": {"ContainerInventories": {"2": container(held or {})}}}
+    return build_report(p, NOW)["fruit"]
+
+
+class PickFruit(unittest.TestCase):
+    def test_a_fruit_under_25_with_fruit_on_a_tree_is_listed_with_its_zones(self):
+        [row] = fruit({APPLE: 4}, {2: [tree(APPLE_TREE), tree(APPLE_TREE)], 0: [tree(APPLE_TREE)]})
+        self.assertEqual((row["name"], row["have"], row["need"], row["trees"], row["fruit"]), ("Apple", 4, 25, 3, 9))
+        self.assertEqual(row["zones"], ["Peaceful Meadow (2)", "Dazzle Beach (1)"])
+        self.assertTrue(row["wiki_url"])
+
+    def test_fruit_per_pick_is_the_trees_own(self):
+        [row] = fruit({}, {8: [tree(STRAWBERRY_TREE)]})
+        self.assertEqual((row["name"], row["fruit"], row["zones"]), ("Strawberry", 2, ["The Docks (1)"]))
+
+    def test_a_tree_still_regrowing_does_not_count(self):
+        self.assertEqual(fruit({}, {2: [tree(APPLE_TREE, "2026-10-19T12:00:01Z")]}), [])
+        [row] = fruit({}, {2: [tree(APPLE_TREE, "2026-10-19T12:00:00Z"), tree(APPLE_TREE, "2026-10-20T00:00:00Z")]})
+        self.assertEqual(row["trees"], 1)
+
+    def test_stocked_fruit_and_fruit_without_a_tree_are_not_listed(self):
+        self.assertEqual(fruit({APPLE: 25}), [])
+        self.assertEqual(fruit({APPLE: 24})[0]["have"], 24)
+        self.assertEqual(build_report(profile(), NOW)["fruit"], [])
+
+    def test_emptiest_first(self):
+        names = [r["name"] for r in fruit({APPLE: 3, STRAWBERRY: 1}, {2: [tree(APPLE_TREE), tree(STRAWBERRY_TREE)]})]
+        self.assertEqual(names, ["Strawberry", "Apple"])
+
+
 class GatherForChests(unittest.TestCase):
     def test_absent_once_five_chests_can_be_crafted(self):
         self.assertIsNone(gather({DARK_WOOD: 125, INGOT: 25}))
@@ -694,6 +738,43 @@ class GatherForChests(unittest.TestCase):
 
     def test_covered_wood_does_not_exempt_the_card_from_the_world_rule(self):
         self.assertIsNone(gather({DARK_WOOD: 125}, spawned=0))
+
+
+def fish_report(level=10, minutes_ago=0, area=None, boats=None):
+    boats = boats or [(level, minutes_ago, area)]
+    grids, areas = {}, {}
+    for n, (lv, ago, ar) in enumerate(boats, 1):
+        when = (NOW - timedelta(minutes=ago)).strftime("%Y-%m-%dT%H:%M:%SZ") if ago is not None else None
+        grids[str(n)] = {"ID": n, "Objects": {"0": {"ItemID": 20100002, "State": {"FishingStallData": {
+            "UpgradeState": {"Level": lv}, "LastCollect": when, "PendingFishes": []}}}}}
+        if ar is not None:
+            areas.setdefault(str(ar), {"GridIDs": []})["GridIDs"].append(n)
+    return build_report({"World": {"Characters": [], "GridCollection": {"Grids": grids},
+                                   "Villages": [{"Areas": areas}]}}, NOW)["pick_up_fish"]
+
+
+class PickUpFish(unittest.TestCase):
+    def test_a_boat_is_full_once_every_space_has_had_its_regen_time(self):
+        self.assertEqual(fish_report(10, minutes_ago=20 * 6)["lines"], [{"zone": "Valley", "fish": 20}])
+        self.assertIsNone(fish_report(10, minutes_ago=20 * 6 - 1))
+        self.assertEqual(fish_report(9, minutes_ago=117)["lines"][0]["fish"], 18)  # 6.5 min per fish
+        self.assertIsNone(fish_report(9, minutes_ago=116))
+
+    def test_level_eleven_and_above_keep_level_ten_numbers(self):
+        self.assertEqual(fish_report(11, minutes_ago=120)["lines"][0]["fish"], 20)
+        self.assertEqual(fish_report(12, minutes_ago=120)["lines"][0]["fish"], 20)
+
+    def test_absent_without_a_boat_or_with_one_the_save_cannot_tell(self):
+        self.assertIsNone(build_report(profile(), NOW)["pick_up_fish"])
+        self.assertIsNone(fish_report(10, minutes_ago=None))
+        self.assertIsNone(fish_report(0, minutes_ago=500))
+
+    def test_a_collect_in_the_future_is_not_full(self):
+        self.assertIsNone(fish_report(1, minutes_ago=-30))
+
+    def test_only_full_boats_get_a_line_named_by_zone_in_grid_order(self):
+        r = fish_report(boats=[(10, 70, 0), (10, 300, 8), (5, 100, None)])
+        self.assertEqual(r["lines"], [{"zone": "Eternity Isle", "fish": 20}, {"zone": "Valley", "fish": 10}])
 
 
 class TimeBending(unittest.TestCase):

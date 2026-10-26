@@ -77,6 +77,9 @@ def demo_report():
                            {"ItemID": 31700007, "Amount": 5, "State": None}]}}   # Gold Ingot: 20 short
     now = datetime.datetime.now(datetime.timezone.utc)
 
+    def boat_collect(minutes_ago):
+        return (now - datetime.timedelta(minutes=minutes_ago)).strftime("%Y-%m-%dT%H:%M:%SZ")
+
     def duty(state, cur, target, data=None):
         objective = {"CurAmount": cur, "TargetAmount": target}
         if data:
@@ -95,8 +98,20 @@ def demo_report():
     profile = {
         "LastDailyReset": "2026-10-19T05:00:00Z",
         "World": {"Characters": chars,
-                  "GridCollection": {"Grids": {"1": {"Objects": {   # 40 loose Dark Wood in the world
-                      str(n): {"ID": n, "ItemID": 31700002} for n in range(40)}}}},
+                  "GridCollection": {"Grids": {"1": {"ID": 1, "Objects": {   # 40 loose Dark Wood in the world
+                      str(n): {"ID": n, "ItemID": 31700002} for n in range(40)}},
+                      # Moana's Boat: full in the Valley (level 10, emptied 3 hours ago), half full on Eternity Isle (no line)
+                      "2": {"ID": 2, "Objects": {"0": {"ID": 0, "ItemID": 20100002, "State": {"FishingStallData": {
+                          "UpgradeState": {"Level": 10}, "LastCollect": boat_collect(3 * 60), "PendingFishes": []}}}}},
+                      "3": {"ID": 3, "Objects": {"0": {"ID": 0, "ItemID": 20100002, "State": {"FishingStallData": {
+                          "UpgradeState": {"Level": 5}, "LastCollect": boat_collect(50), "PendingFishes": []}}}}},
+                      # fruit trees with fruit on them: apple x3 in Peaceful Meadow and x1 at Dazzle Beach, cherry x2, strawberry x1
+                      "4": {"ID": 4, "Objects": {str(n): {"ID": n, "ItemID": 20200002, "State": {"GardenData": {"Slots": [
+                          {"PlantedSeedItemID": seed, "Harvest": {"EndOfGrowth": "2022-11-28T01:40:07Z", "NumberOfProductionLeft": -1}}]}}}
+                          for n, seed in enumerate((30400029, 30400029, 30400029, 30400071, 30400071, 30400074))}},
+                      "5": {"ID": 5, "Objects": {"0": {"ID": 0, "ItemID": 20200002, "State": {"GardenData": {"Slots": [
+                          {"PlantedSeedItemID": 30400029, "Harvest": {"EndOfGrowth": "2022-11-28T01:40:07Z", "NumberOfProductionLeft": -1}}]}}}}}}},
+                  "Villages": [{"Areas": {"8": {"GridIDs": [3]}, "2": {"GridIDs": [4]}, "0": {"GridIDs": [5]}}}],
                   "Critters": [{"CritterItemID": 120100000, "NumberOfFeedingDone": 1},
                                {"CritterItemID": 120100002, "NumberOfFeedingDone": 2},
                                {"CritterItemID": 120100003, "NumberOfFeedingDone": 0},
@@ -123,6 +138,10 @@ def demo_report():
             "DutySlots": {"1540000000": {"Slots": [slot(0, 2110000034, 5), slot(1, 7, 1)]},
                           "1540000101": {"Slots": [slot(0, 2110000040, 3)]}},
             "ContainerInventories": containers,
+            # the Trick-or-Treat Event's duties (listed while the Event runs): two open, one at its milestone, one claimed
+            "AchievementsData": [{"AchievementID": i, "CurAmount": c, "ClaimedRewardMilestone": m,
+                                  "State": "AchievementState_" + ("Completed" if i == 2110100136 else "OnGoing")}
+                                 for i, c, m in ((2110100132, 4, 0), (2110100133, 10, 0), (2110100136, 100, 100), (2110100411, 1, 1))],
             "AssignedPets": [120000013, 120000001, 120000099],
             "Pets": [{"PetItemID": 120000002, "FriendshipLevel": 5},
                      {"PetItemID": 120000013, "FriendshipLevel": 5},

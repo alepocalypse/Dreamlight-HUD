@@ -41,6 +41,7 @@ class Inventory:
 
 
 _WILD_PLOT = 20200007   # the patch a wild crop (herb, mushroom) grows in; the player's own garden plots are other items
+_FRUIT_TREE = 20200002   # a fruit tree (placeable: the player moves them); its planted seed says which fruit
 
 
 def _when(text):
@@ -71,8 +72,15 @@ class World:
     wild_crops: {village area key: {wild seed item id: [datetime each patch is ready at]}} for the wild plots
         (herbs, mushrooms) in that area's grids that hold a seed with a harvest left; a patch is ripe once its
         datetime has passed.
+    fruit_trees: {village area key: {tree seed item id: [datetime each tree's fruit is ready at]}} for the fruit
+        trees in that area's grids (the save keeps a tree as a garden holding its seed, with endless harvests);
+        the fruit is on the tree once its datetime (the regrowth after the last pick) has passed.
     ripples: {village area key: {ripple rarity: count}} for the fish ripples now on the water
-        (PendingFishes), the rarity without its "FishRippleRarity_" prefix. Treat the dicts as read-only."""
+        (PendingFishes), the rarity without its "FishRippleRarity_" prefix. Treat the dicts as read-only.
+    boats: [{area, level, last_collect}] one per Moana's Boat in the world's grids (an object whose State
+        holds FishingStallData), in grid order: area the village area key its grid belongs to (None when
+        no area lists the grid), level the boat's UpgradeState.Level (0 when missing), last_collect when
+        the player last emptied it (an aware datetime, None when missing or not a timestamp)."""
 
     def __init__(self, profile):
         world = profile.get("World") or {}
@@ -80,6 +88,7 @@ class World:
         if isinstance(grids, dict):
             grids = grids.values()
         self._loose = {}
+        boats = []  # (grid id, state) until the areas are known
         for grid in grids:
             objects = grid.get("Objects") or {} if isinstance(grid, dict) else {}
             if isinstance(objects, dict):
@@ -88,6 +97,9 @@ class World:
                 item = o.get("ItemID") if isinstance(o, dict) else None
                 if item:
                     self._loose[item] = self._loose.get(item, 0) + 1
+                stall = (o.get("State") or {}).get("FishingStallData") if isinstance(o, dict) else None
+                if isinstance(stall, dict):
+                    boats.append((grid.get("ID"), stall))
         treasures = world.get("TimeLostTreasures") or {}
         if isinstance(treasures, dict):
             treasures = treasures.values()
@@ -98,8 +110,9 @@ class World:
                 area = area.removeprefix("VillageAreaType_")
                 self.time_nodes[area] = self.time_nodes.get(area, 0) + 1
 
-        self.special_rocks, self.items_by_area, self.ripples, self.wild_crops = {}, {}, {}, {}
+        self.special_rocks, self.items_by_area, self.ripples, self.wild_crops, self.fruit_trees = {}, {}, {}, {}, {}
         by_id = {g.get("ID"): g for g in grids if isinstance(g, dict)}
+        area_of_grid = {}
         for village in world.get("Villages") or []:
             areas = village.get("Areas") if isinstance(village, dict) else None
             for key, area in (areas.items() if isinstance(areas, dict) else []):
@@ -111,15 +124,23 @@ class World:
                             sp.get("NumberOfHits", 0) < sp.get("NumberOfHitsNeeded", 1):
                         self.special_rocks[int(key)] = sp["MiningDataItemID"]
                 for gid in area.get("GridIDs") or []:
+                    area_of_grid.setdefault(gid, int(key))
                     objects = (by_id.get(gid) or {}).get("Objects") or {}
                     for o in objects.values() if isinstance(objects, dict) else objects:
                         item = o.get("ItemID") if isinstance(o, dict) else None
                         if item == _WILD_PLOT:
-                            self._add_wild(int(key), o)
+                            self._add_garden(self.wild_crops, int(key), o)
+                        elif item == _FRUIT_TREE:
+                            self._add_garden(self.fruit_trees, int(key), o, endless=True)
                         dry = ((o.get("State") or {}).get("FlowerData") or {}).get("Dry") if isinstance(o, dict) else None
                         if item and not dry:
                             counts = self.items_by_area.setdefault(int(key), {})
                             counts[item] = counts.get(item, 0) + 1
+        self.boats = []
+        for gid, stall in boats:
+            level = (stall.get("UpgradeState") or {}).get("Level") if isinstance(stall.get("UpgradeState"), dict) else None
+            self.boats.append({"area": area_of_grid.get(gid), "level": level if isinstance(level, int) else 0,
+                               "last_collect": _when(stall.get("LastCollect"))})
         pending = world.get("PendingFishes") or {}
         for f in pending.values() if isinstance(pending, dict) else pending:
             loc = ((f.get("Location") or {}).get("VillageArea") or "") if isinstance(f, dict) else ""
@@ -131,13 +152,17 @@ class World:
                 self.ripples.setdefault(key, {})
                 self.ripples[key][rarity] = self.ripples[key].get(rarity, 0) + 1
 
-    def _add_wild(self, area, plot):
+    @staticmethod
+    def _add_garden(store, area, plot, endless=False):
+        """Record each slot of a garden object with a seed and a readable EndOfGrowth into `store`, when it has
+        harvests left (NumberOfProductionLeft above 0, or -1 for the endless harvests of a tree when `endless`)."""
         for slot in ((plot.get("State") or {}).get("GardenData") or {}).get("Slots") or []:
             harvest = slot.get("Harvest") if isinstance(slot, dict) else None
             seed = slot.get("PlantedSeedItemID") if isinstance(slot, dict) else None
             ready = _when((harvest or {}).get("EndOfGrowth"))
-            if seed and ready and (harvest.get("NumberOfProductionLeft") or 0) > 0:
-                self.wild_crops.setdefault(area, {}).setdefault(seed, []).append(ready)
+            left = (harvest or {}).get("NumberOfProductionLeft") or 0
+            if seed and ready and (left > 0 or (endless and left == -1)):
+                store.setdefault(area, {}).setdefault(seed, []).append(ready)
 
     def loose(self, item):
         return self._loose.get(item, 0)
@@ -278,6 +303,17 @@ def _duty_slots(profile):
     return out
 
 
+def _achievements(profile):
+    """{AchievementID: {current, claimed, state}} from Player.AchievementsData, where the game keeps the seasonal
+    Event duties (and the permanent Dreamlight duties): current is CurAmount (0), claimed the value of the last
+    milestone whose reward was claimed (ClaimedRewardMilestone, 0), state the State without its
+    "AchievementState_" prefix ("" when missing). Entries that are not dicts or lack the id are skipped."""
+    entries = (profile.get("Player") or {}).get("AchievementsData") or []
+    return {a["AchievementID"]: {"current": a.get("CurAmount", 0), "claimed": a.get("ClaimedRewardMilestone", 0),
+                                 "state": _str(a.get("State")).removeprefix("AchievementState_")}
+            for a in (entries if isinstance(entries, list) else []) if isinstance(a, dict) and a.get("AchievementID")}
+
+
 def _owned_pack_ids(profile):
     """The content pack ids the save says are owned, or None when the list is missing or empty."""
     ids = profile.get("LastKnownBoughtExpansionsAnyPlatform")
@@ -310,7 +346,9 @@ class SaveView:
     duty_slots: [{key, duties}] one per village set of the rotating Dreamlight Duties (Valley) and Mist
         Duties (Eternity Isle) in Player.DutySlots, key the village's scene item id as text; duties:
         [{position, duty_id, state (OnGoing, Completed, ...), current, target, filter}] in slot order,
-        position counting from 1. Treat the lists and dicts as read-only."""
+        position counting from 1.
+    achievements: {AchievementID: {current, claimed, state}} from Player.AchievementsData (see _achievements), the
+        seasonal Event duties among them. Treat the lists and dicts as read-only."""
 
     def __init__(self, profile):
         self.inventory = Inventory(profile)
@@ -320,5 +358,6 @@ class SaveView:
         self.characters = _characters(profile)
         self.star_paths = _star_paths(profile)
         self.duty_slots = _duty_slots(profile)
+        self.achievements = _achievements(profile)
         self.daily_reset = profile.get("LastDailyReset")
         self.owned_pack_ids = _owned_pack_ids(profile)
