@@ -1,7 +1,7 @@
 """Report builder: decoded profile dict + current time -> plain HUD data."""
 import math
 
-from . import catalog, duty_plan, duty_requirements, duty_text, shared_actions, slot_duties, stock_zones
+from . import catalog, duty_mode, duty_plan, duty_requirements, duty_text, shared_actions, slot_duties, stock_zones
 from .companions import COMPANIONS, JOBS  # COMPANIONS: tests patch the table in place through this name
 from .ingredients import CATEGORIES
 from .recipes import RECIPES
@@ -264,13 +264,14 @@ def _days_left(ends, now):
 
 
 def _event_duties(save, now):
-    """(star_paths, shared, plan). star_paths: one entry per Star Path, then one per rotating duty set (Dreamlight Duties, Mist Duties: tokens and ends None, no weekly): [{id, title, currency, tokens, ends, days_left, duties, weekly}]. duties: the OnGoing and
+    """(star_paths, shared, plan, actions). star_paths: one entry per Star Path, then one per rotating duty set (Dreamlight Duties, Mist Duties: tokens and ends None, no weekly): [{id, title, currency, tokens, ends, days_left, duties, weekly}]. duties: the OnGoing and
     Completed-but-unclaimed duties as {text, current, target, done, requires}, requires (see
     duty_requirements.Requirement.to_json) only for the duties it could classify; weekly: [{week (from 1), duties}] for every
     week that has any such duty. NotStarted and CurrencyClaimed duties are left out. The save's positions count
     from 1, the text table's from 0. shared: the 'do together' groups across them (shared_actions.do_together,
     open duties only), each duty as {path (the Star Path title), text, current, target, weekly (week or None)}. plan: the ordered task
-    list over every open duty, classified or not (duty_plan.duty_plan)."""
+    list over every open duty, classified or not (duty_plan.duty_plan). actions: Duty mode's Action list over the
+    same duties (duty_mode.duty_actions)."""
     open_duties, all_open = [], []
 
     def shown(duties, text, title, week, zoned=False):
@@ -345,14 +346,14 @@ def _event_duties(save, now):
                       "days_left": None,
                       "duties": shown(dset["duties"], text, title, None, zoned=True), "weekly": []})
     shared = shared_actions.do_together(open_duties)
-    return paths, shared, duty_plan.duty_plan(all_open, shared)
+    return paths, shared, duty_plan.duty_plan(all_open, shared), duty_mode.duty_actions(all_open, shared)
 
 
 def build_report(profile, now):
     save = SaveView(profile)
     roster = Roster(save, VILLAGERS)
     villagers = roster.villagers
-    event_duties, shared, plan = _event_duties(save, now)
+    event_duties, shared, plan, actions = _event_duties(save, now)
     cook = _cook_list(roster, save.inventory.owned, save.known_meals)
     return {
         "summary": {
@@ -378,4 +379,5 @@ def build_report(profile, now):
         "event_duties": event_duties,
         "shared": shared,
         "plan": plan,
+        "actions": actions,
     }

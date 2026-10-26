@@ -56,6 +56,7 @@ If your save is not found, use **Choose save folder…** and pick the folder tha
 
     pip install cryptography            # needed to decrypt the save file (plus pywebview for window mode)
     python3 -m ddvhud --window          # own window
+    python3 -m ddvhud --duty            # narrow window straight into Duty mode (also at /duty)
     python3 -m ddvhud --port 8765       # browser at http://127.0.0.1:8765/
     python3 -m ddvhud --save PATH       # save folder or profile.json
 

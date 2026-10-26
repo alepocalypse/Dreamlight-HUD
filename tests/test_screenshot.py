@@ -14,6 +14,10 @@ class ShotPlan(unittest.TestCase):
     def test_scheme_and_width_narrow_it(self):
         self.assertEqual(screenshot.shot_plan("dark", 800), [("desktop-800-dark.png", 800, "dark")])
 
+    def test_duty_mode_shots_are_named_for_it(self):
+        self.assertEqual(screenshot.shot_plan("both", 400, duty=True),
+                         [("duty-400-light.png", 400, "light"), ("duty-400-dark.png", 400, "dark")])
+
 
 class VenvReexec(unittest.TestCase):
     def test_reexec_only_when_venv_exists_and_not_already_on_it(self):
@@ -33,6 +37,10 @@ class DemoReport(unittest.TestCase):
         self.assertTrue(any(c["name"].startswith("Companion #") for c in r["companions"]["no_job"]))
         self.assertGreater(len(r["todo"]), 15)
 
+    def test_duty_mode_shows_a_double_a_triple_and_a_quad(self):
+        sizes = {a["size"] for a in screenshot.demo_report()["actions"]}
+        self.assertLessEqual({"Double", "Triple", "Quad", "Single"}, sizes)
+
     def test_profession_cards_show_mixed_and_all_max_states(self):
         cards = screenshot.demo_report()["professions"]
         # a card with Villagers below max and some at max, and one where everyone is at max
@@ -47,6 +55,19 @@ class BrowserRun(unittest.TestCase):
     def test_demo_renders_footer_without_errors(self):
         with pwpage.app_page(width=800, demo=True) as (page, errors):
             self.assertIn("Decode OK", page.inner_text("#meta"))
+            self.assertEqual(errors, [])
+            self.assertFalse(page.evaluate("document.documentElement.scrollWidth > window.innerWidth"))
+
+    def test_duty_mode_renders_badged_cards_and_remembers_its_own_list_choice(self):
+        with pwpage.app_page(width=400, demo=True, path="/duty") as (page, errors):
+            self.assertEqual(page.eval_on_selector_all(".acard .badge", "els => els.map(e => e.textContent)"),
+                             ["Quad", "Triple", "Double"])
+            self.assertEqual(page.inner_text("#unclaimed"), "2 done, claim in game")
+            self.assertIn("Haunting Elegance", page.inner_text("#actions"))
+            page.get_by_label("Haunting Elegance").uncheck()
+            self.assertNotIn("Haunting Elegance", page.inner_text("#actions"))
+            self.assertEqual(page.evaluate("[localStorage.getItem('ddv-dutymode-off'), localStorage.getItem('ddv-duty-off')]"),
+                             ['["Haunting Elegance"]', None])
             self.assertEqual(errors, [])
             self.assertFalse(page.evaluate("document.documentElement.scrollWidth > window.innerWidth"))
 

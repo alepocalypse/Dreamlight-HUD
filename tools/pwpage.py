@@ -71,9 +71,10 @@ def load_playwright():
 
 
 @contextlib.contextmanager
-def app_page(width=1100, height=900, scheme="light", report=None, demo=False, save=app.DEFAULT_ROOT):
+def app_page(width=1100, height=900, scheme="light", report=None, demo=False, save=app.DEFAULT_ROOT, path="/"):
     """Yield (page, errors) with the app loaded and rendered.
 
+    path: the page to open, "/" (the full HUD) or "/duty" (Duty mode).
     report: a report dict served as /report.json instead of the real save.
     demo: use the synthetic demo report (tools/screenshot.py demo_report).
     errors: list that collects JS page errors and console errors.
@@ -108,7 +109,7 @@ def app_page(width=1100, height=900, scheme="light", report=None, demo=False, sa
                     body = json.dumps(report)
                     page.route("**/report.json", lambda r: r.fulfill(
                         status=200, content_type="application/json", body=body))
-                page.goto(f"http://127.0.0.1:{httpd.server_address[1]}/")
+                page.goto(f"http://127.0.0.1:{httpd.server_address[1]}{path}")
                 page.wait_for_function(
                     "document.getElementById('meta').textContent.includes('Decode OK')"
                     " || document.getElementById('err').style.display === 'block'", timeout=15000)
