@@ -56,13 +56,23 @@ The player's carried inventory (`ContainerInventories` container ID 0). Not a Ch
 **Gather For Chests**:
 The card listing the raw materials still short for crafting 5 Large Chests (25 Dark Wood and 5 Gold Ingot each). Absent once 5 can be crafted from everything the player holds.
 
+**Moana's Boat**:
+The stall at Dazzle Beach (and one per other Village once placed) that fills with free Fish over time, one fish per regen interval up to its Fish spaces, both set by its upgrade level. The save keeps when the player last emptied it, not the fish on board.
+_Avoid_: fishing boat, fish stall
+
+**Pick Fruit**:
+The card listing each fruit the player holds fewer than 25 of that is on a tree right now, with the zones the trees stand in and how many trees. A fruit tree is wherever the player placed it, so the zones come from the save, not the wiki.
+
+**Pick Up Fish**:
+The card listing each zone (Valley, Eternity Isle) whose Moana's Boat is full, with the fish waiting there. Absent while no boat is full.
+
 **Duty**:
 One task from a Duty list, with a progress count toward a target ("Catch 5 Fish", 2/5). Open until the count reaches the target; it then pays its Reward.
 _Avoid_: task, quest
 
 **Duty list**:
-Where a Duty comes from: a Star Path, the Dreamlight Duties or the Mist Duties. The player chooses which Duty lists the HUD follows.
-_Avoid_: path, duty tree, event
+Where a Duty comes from: a Star Path, the Dreamlight Duties, the Mist Duties or a seasonal Event. The player chooses which Duty lists the HUD follows.
+_Avoid_: path, duty tree
 
 **Star Path**:
 A time-limited event with its own token currency and its own Duties, some fixed for the whole event and some Routine duties.
@@ -71,6 +81,10 @@ A time-limited event with its own token currency and its own Duties, some fixed 
 A Star Path Duty that belongs to one week of the Star Path; three new ones arrive each week, as the game names them.
 _Avoid_: weekly duty
 
+**Event**:
+A seasonal, time-limited Duty list the game runs beside the Star Paths, such as the Trick-or-Treat Event. Its Duties count toward milestones that each pay an item; the save keeps them as achievements, and the game learns the Event's dates from its servers, so the HUD keeps each Event's window by hand (ADR-0002).
+_Avoid_: seasonal event, Tle, live event
+
 **Dreamlight Duties**:
 The rotating Duty list of the Valley, paying Dreamlight.
 
@@ -78,7 +92,7 @@ The rotating Duty list of the Valley, paying Dreamlight.
 The rotating Duty list of Eternity Isle, paying Mist.
 
 **Reward**:
-What a Duty pays once complete, in its Duty list's currency (Star Path tokens, Dreamlight or Mist).
+What a Duty pays once complete, in its Duty list's currency (Star Path tokens, Dreamlight or Mist), or the item an Event milestone pays.
 
 **Action**:
 One thing to do in the game that advances one or more open Duties at once, such as catching a fish at Dazzle Beach when both "Catch any fish" and "Catch fish at Dazzle Beach" are open. The unit the task list and Duty mode show. An Action lasts only while every Duty it advances is open: once one finishes, the rest stand on their own again.

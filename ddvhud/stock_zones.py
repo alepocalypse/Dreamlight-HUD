@@ -48,9 +48,13 @@ def stock_zones(action, requirement, colour, world):
     return None
 
 
-def _label(area, n=None):
+def zone_label(area, n=None):
+    """A village area key as its zone name, 'Zone (n)' with a count."""
     name = AREAS.get(area, f"Area {area}")
     return f"{name} ({n})" if n else name
+
+
+_label = zone_label
 
 
 def forage_zones(items, world):

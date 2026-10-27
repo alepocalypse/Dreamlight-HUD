@@ -1,13 +1,14 @@
 """Report builder: decoded profile dict + current time -> plain HUD data."""
 import math
 
-from . import catalog, duty_mode, duty_plan, duty_requirements, duty_text, shared_actions, slot_duties, stock_zones
+from . import catalog, duty_mode, duty_plan, duty_requirements, duty_text, event_duties, shared_actions, slot_duties, stock_zones
 from .companions import COMPANIONS, JOBS  # COMPANIONS: tests patch the table in place through this name
 from .ingredients import CATEGORIES
 from .recipes import RECIPES
 from .roster import MAX_LEVEL, Roster, _distinct, _parse_time
 from .saveview import SaveView
 from .spawns import spawn_for
+from .stock_data import FRUIT_TREES
 from .villagers import PROFESSIONS, VILLAGERS
 
 GARDENING_ID = 1500000001
@@ -160,6 +161,32 @@ def _farm_list(cook, held, known):
     return sorted(rows, key=lambda r: (r["have"], r["name"]))
 
 
+def _pick_fruit(save, now):
+    """The "Pick Fruit" card: [{name, have, need, trees, fruit, zones, wiki_url}] for each fruit held fewer than
+    FARM_TARGET of (backpack, storage, chests) that is on a tree right now: a fruit tree standing in one of the
+    village's areas (the player's trees, wherever they were moved) whose regrowth since the last pick (the
+    save's EndOfGrowth) has passed. trees: how many such trees, fruit: what they hold together (FRUIT_TREES'
+    fruit per pick each), zones: 'Zone (trees)' for the areas they stand in, most trees first. Emptiest first."""
+    ready = {}   # fruit item id -> {area key: trees with fruit}
+    for area, trees in save.world.fruit_trees.items():
+        for seed, times in trees.items():
+            n = sum(1 for t in times if t <= now)
+            if seed in FRUIT_TREES and n:
+                by_area = ready.setdefault(FRUIT_TREES[seed][0], {})
+                by_area[area] = by_area.get(area, 0) + n
+    per_pick = {fruit: per for fruit, per in FRUIT_TREES.values()}
+    rows = []
+    for fruit, by_area in ready.items():
+        held = save.inventory.owned.get(fruit, 0)
+        if held >= FARM_TARGET:
+            continue
+        trees = sum(by_area.values())
+        zones = [stock_zones.zone_label(a, n) for n, a in sorted(((n, a) for a, n in by_area.items()), key=lambda x: (-x[0], x[1]))]
+        rows.append({"name": catalog.item_name(fruit), "have": held, "need": FARM_TARGET, "trees": trees,
+                     "fruit": trees * per_pick[fruit], "zones": zones, "wiki_url": catalog.item_wiki_url(fruit)})
+    return sorted(rows, key=lambda r: (r["have"], r["name"]))
+
+
 DARK_WOOD, GOLD_INGOT, GOLD_NUGGET, COAL_ORE =31700002, 31700007, 31700018, 31700017
 CHESTS_WANTED = 5
 SHOW_MIN_WOOD = 6  # fewer loose Dark Wood than this: no card, wood is the choke point
@@ -224,6 +251,32 @@ def _time_bending(save):
     return cards
 
 
+# Moana's Boat: fish spaces and minutes per fish for each upgrade level (dreamlightvalleywiki.com, Moana's Boat
+# page, Upgrades table, read 2026-10-26). Level 11 only adds rare fish to the pool, so it keeps level 10's numbers.
+BOAT_LEVELS = {1: (2, 30), 2: (4, 20), 3: (6, 15), 4: (8, 12), 5: (10, 10),
+               6: (12, 9), 7: (14, 8), 8: (16, 7), 9: (18, 6.5), 10: (20, 6)}
+
+
+def _pick_up_fish(save, now):
+    """The "Pick Up Fish" card, or None while no Moana's Boat is full: one line per full boat [{zone, fish}],
+    `fish` its spaces (all taken). zone: "Valley" for a boat in the Valley's areas (keys 0-7, or none
+    known), "Eternity Isle" for one in its areas.
+    The save does not keep the fish on board between visits (its PendingFishes stays empty), so a boat is
+    full once the time since the player last emptied it covers one regen interval per space at its level.
+    ASSUMPTION: the boat fills on real time, in or out of the game.
+    A boat with no collect time or a level outside the wiki's table is skipped (the save cannot tell)."""
+    lines = []
+    for boat in save.world.boats:
+        level = min(boat["level"], max(BOAT_LEVELS))
+        if boat["last_collect"] is None or level not in BOAT_LEVELS:
+            continue
+        slots, regen = BOAT_LEVELS[level]
+        if (now - boat["last_collect"]).total_seconds() / 60 >= slots * regen:
+            zone = "Valley" if boat["area"] is None or boat["area"] < 8 else "Eternity Isle"
+            lines.append({"zone": zone, "fish": slots})
+    return {"lines": lines} if lines else None
+
+
 def _companions(save):
     """Companions by Job: the goal is two per Job, each at Companion level 5."""
     equipped = save.companions.equipped
@@ -264,7 +317,7 @@ def _days_left(ends, now):
 
 
 def _event_duties(save, now):
-    """(star_paths, shared, plan, actions). star_paths: one entry per Star Path, then one per rotating duty set (Dreamlight Duties, Mist Duties: tokens and ends None, no weekly): [{id, title, currency, tokens, ends, days_left, duties, weekly}]. duties: the OnGoing and
+    """(star_paths, shared, plan, actions). star_paths: one entry per Star Path, then one per rotating duty set (Dreamlight Duties, Mist Duties: tokens and ends None, no weekly), then one per seasonal Event that is on (event_duties.event_lists: tokens None, ends its last day, duties carry hint, what the duty asks): [{id, title, currency, tokens, ends, days_left, duties, weekly}]. duties: the OnGoing and
     Completed-but-unclaimed duties as {text, current, target, done, requires}, requires (see
     duty_requirements.Requirement.to_json) only for the duties it could classify; weekly: [{week (from 1), duties}] for every
     week that has any such duty. NotStarted and CurrencyClaimed duties are left out. The save's positions count
@@ -274,10 +327,11 @@ def _event_duties(save, now):
     same duties (duty_mode.duty_actions); a duty there carries reward {amount, currency} when its table has one: a
     Star Path duty from the wiki's (duty_text.duty_reward, weekly_duty_reward), a rotating duty from the game's for
     its set (slot_duties.slot_reward), and value, its Reward in Dreamlight-equivalent (duty_mode.duty_value: a
-    Star Path duty without a Reward at its Star Path's duty_text.median_reward, a rotating one at 0)."""
+    Star Path duty without a Reward at its Star Path's duty_text.median_reward, a rotating one at 0, an Event
+    duty at 0 too: its Reward is an item)."""
     open_duties, all_open = [], []
 
-    def shown(duties, text, title, week, zoned=False, reward=lambda i: None, per_unit=1, fallback=None):
+    def shown(duties, text, title, week, zoned=False, reward=lambda i: None, per_unit=1, fallback=None, hint=lambda i: None):
         out = []
         for d in duties:
             if d["state"] not in ("OnGoing", "Completed"):
@@ -285,12 +339,16 @@ def _event_duties(save, now):
             shown_text = text(d["position"] - 1)
             duty = {"text": shown_text, "current": d["current"], "target": d["target"],
                     "done": d["state"] == "Completed" or d["current"] >= d["target"]}
+            if hint(d["position"] - 1):
+                duty["hint"] = hint(d["position"] - 1)
             req = duty_requirements.classify(shown_text, d["filter"])
             if zoned and slot_duties.names_a_zone(shown_text):
                 req = duty_requirements.Requirement(duty_requirements.UNKNOWN)
             if not duty["done"]:
                 entry = {"path": title, "text": shown_text, "current": d["current"],
                          "target": d["target"], "weekly": week}
+                if hint(d["position"] - 1):
+                    entry["hint"] = hint(d["position"] - 1)
                 if reward(d["position"] - 1):
                     entry["reward"] = reward(d["position"] - 1)
                 entry["value"] = duty_mode.duty_value(entry.get("reward"), per_unit, fallback)
@@ -356,6 +414,16 @@ def _event_duties(save, now):
         paths.append({"id": "DutySlots" + dset["key"], "title": title, "currency": "", "tokens": None, "ends": None,
                       "days_left": None,
                       "duties": shown(dset["duties"], text, title, None, zoned=True, reward=reward), "weekly": []})
+    for ev in event_duties.event_lists(save.achievements, now):   # a seasonal Event on now: listed like a Star Path
+        rows = ev["duties"]
+        duties = [{"position": i, "state": "Completed" if r["done"] else "OnGoing", "current": r["current"],
+                   "target": r["target"], "filter": {}} for i, r in enumerate(rows, 1)]
+        paths.append({"id": "Event" + ev["key"], "title": ev["title"], "currency": "", "tokens": None, "ends": ev["ends"],
+                      "days_left": _days_left(ev["ends"], now),
+                      "duties": shown(duties, lambda i, rows=rows: rows[i]["text"], ev["title"], None,
+                                      reward=lambda i, rows=rows: rows[i]["reward"], per_unit=0,
+                                      hint=lambda i, rows=rows: rows[i]["hint"]),
+                      "weekly": []})
     shared = shared_actions.do_together(open_duties)
     return paths, shared, duty_plan.duty_plan(all_open, shared), duty_mode.duty_actions(all_open, shared)
 
@@ -380,9 +448,11 @@ def build_report(profile, now):
         "professions": _profession_cards(villagers),
         "no_profession": _no_profession(villagers),
         "gather": _gather_for_chests(save),
+        "pick_up_fish": _pick_up_fish(save, now),
         "time_bending": _time_bending(save),
         "cook": cook,
         "farm": _farm_list(cook, save.inventory.owned, save.known_meals),
+        "fruit": _pick_fruit(save, now),
         "todo": _todo_list(roster, save.inventory.chests, save.inventory.backpack),
         "not_in_village": roster.not_in_village,
         "requires_dlc": roster.requires_dlc,

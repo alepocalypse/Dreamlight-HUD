@@ -82,6 +82,7 @@ function dutyRow(d,single){
   const li=document.createElement('li');
   const tx=document.createElement('span');tx.textContent=tidy(d.text);
   tx.append(small(d.path+(d.weekly?' (week '+d.weekly+')':''),'list'));
+  if(d.hint)tx.append(small(d.hint));   // what an Event duty asks (the game shows only its name)
   if(d.food)tx.append(small(d.food));
   if(d.spot)tx.append(small(d.spot,'zones'));
   if(d.zones&&d.zones.length)tx.append(small(d.zones.slice(0,MAX_ZONES).join(', ')+(d.zones.length>MAX_ZONES?' +'+(d.zones.length-MAX_ZONES)+' more':''),'zones'));
@@ -105,11 +106,11 @@ function actionCard(a){
 function render(){
   const r=last;if(!r)return;
   const off=disabledLists(),lists=r.event_duties||[];
-  $('pathinfo').replaceChildren(...lists.filter(e=>e.tokens!=null&&!off.has(e.title)).map(e=>{
+  $('pathinfo').replaceChildren(...lists.filter(e=>(e.tokens!=null||e.days_left!=null)&&!off.has(e.title)).map(e=>{
     const d=document.createElement('div');const b=document.createElement('b');b.textContent=e.title;d.append(b);
     const bits=[];
     if(e.days_left!=null)bits.push(e.days_left===0?'ends today':e.days_left+(e.days_left===1?' day left':' days left'));
-    bits.push(e.tokens+' '+e.currency);
+    if(e.tokens!=null)bits.push(e.tokens+' '+e.currency);
     d.append(' · '+bits.join(' · '));return d;
   }));
   $('dutyfilter').replaceChildren(...lists.map(e=>{

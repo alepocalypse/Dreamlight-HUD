@@ -206,7 +206,7 @@ function wikiLink(url,text){
 function listOf(rows,fn){const u=document.createElement('ul');rows.forEach(r=>u.append(fn(r)));return u;}
 function fedHead(){const d=subhead('Critter');d.classList.add('fedhead');const f=document.createElement('span');f.textContent='Fed';d.append(f);return d;}
 function subhead(t){const d=document.createElement('div');d.className='sub';d.textContent=t;return d;}
-// Event duties: a checkbox per duty list (Star Path, Dreamlight Duties, Mist Duties) hides its duties from the task list;
+// Event duties: a checkbox per duty list (Star Path, Dreamlight Duties, Mist Duties, a seasonal Event) hides its duties from the task list;
 // the choice is remembered in this browser. An entry left with one duty is shown as a single.
 let lastEvents=null;
 function disabledLists(){try{return new Set(JSON.parse(localStorage.getItem('ddv-duty-off')||'[]'));}catch(e){return new Set();}}
@@ -221,12 +221,12 @@ function renderEvents(){
     l.append(c,' '+title);bar.append(l);
   });
   const info=document.createElement('div');info.id='pathinfo';
-  (r.event_duties||[]).filter(e=>e.tokens!=null&&!off.has(e.title)).forEach(e=>{
+  (r.event_duties||[]).filter(e=>(e.tokens!=null||e.days_left!=null)&&!off.has(e.title)).forEach(e=>{
     const d=document.createElement('div');
     const b=document.createElement('b');b.textContent=e.title;d.append(b);
     const bits=[];
     if(e.days_left!=null)bits.push(e.days_left===0?'ends today':e.days_left+(e.days_left===1?' day left':' days left'));
-    bits.push(e.tokens+' '+e.currency);
+    if(e.tokens!=null)bits.push(e.tokens+' '+e.currency);
     d.append(' · '+bits.join(' · '));info.append(d);
   });
   const plan=(r.plan||[]).map(e=>({...e,duties:e.duties.filter(d=>!off.has(d.path))})).filter(e=>e.duties.length)
@@ -247,6 +247,10 @@ function spotLine(text){
   const z=document.createElement('small');z.className='req zones';z.textContent=text;
   return z;
 }
+function hintLine(text){   // what an Event duty asks (the game shows only its name)
+  const z=document.createElement('small');z.className='req';z.textContent=text;
+  return z;
+}
 function growsLine(zones){
   const z=document.createElement('small');z.className='req';z.textContent='Grows faster in: '+zones.join(', ');
   return z;
@@ -261,6 +265,7 @@ function taskCard(t){
     const w=document.createElement('span');w.textContent=where(t.duties[0]);
     const n=document.createElement('span');n.textContent=t.duties[0].current+'/'+t.duties[0].target;
     s.append(w,n);d.append(s);
+    if(t.duties[0].hint)d.append(hintLine(t.duties[0].hint));
     if(t.duties[0].spot)d.append(spotLine(t.duties[0].spot));
     if(t.duties[0].zones){const zl=zonesLine(t.duties[0].zones);if(zl)d.append(zl);}
     if(t.duties[0].grows)d.append(growsLine(t.duties[0].grows));
@@ -271,6 +276,7 @@ function taskCard(t){
   const line=(label,x,cls)=>{   // one row: the name (with its extra lines) and the count aligned right
     const li=document.createElement('li');li.title=where(x);
     const tx=document.createElement('span');tx.textContent=label;if(cls)tx.className=cls;
+    if(x.hint)tx.append(hintLine(x.hint));
     if(x.food){const f=document.createElement('small');f.className='req';f.textContent=x.food;tx.append(f);}
     if(x.spot)tx.append(spotLine(x.spot));
     if(t.tier!=='rows'){const q=document.createElement('small');q.className='req';q.textContent=where(x);tx.append(q);}
@@ -384,6 +390,31 @@ function gatherCard(g){
   });
   d.append(top,row,ul);return d;
 }
+// "Pick Up Fish" To-do card: one row per full Moana's Boat (Valley, Eternity Isle) with the fish waiting on board.
+function fishBlock(){
+  const d=document.createElement('span');d.className='portrait none';d.setAttribute('role','img');d.setAttribute('aria-label','Fish');d.title='Fish';
+  const i=svg('',' 0 0 24 24');i.setAttribute('width','36');i.setAttribute('height','36');
+  i.append(el('path',{d:'M2 12c3-4.5 6.5-6.5 10.5-6.5 2.5 0 4.5 1 6 2.5L22 5v14l-3.5-3c-1.5 1.5-3.5 2.5-6 2.5C8.5 18.5 5 16.5 2 12z'}),
+    el('circle',{cx:'15',cy:'10.5',r:'1',fill:'currentColor',stroke:'none'}));
+  i.style.cssText='fill:none;stroke:currentColor;stroke-width:1.8;stroke-linejoin:round';
+  d.textContent='';d.append(i);return d;
+}
+function fishCard(f){
+  const d=document.createElement('div');d.className='vcard gather';
+  const top=document.createElement('div');top.className='top';
+  const n=document.createElement('span');n.className='vname';n.textContent='Pick Up Fish';
+  top.append(fishBlock(),n);
+  const ul=document.createElement('ul');ul.className='gifts';
+  f.lines.forEach(l=>{
+    const li=document.createElement('li');
+    const nm=document.createElement('span');nm.className='gname';nm.textContent=l.zone;
+    const num=document.createElement('span');num.className='gnum';num.textContent=l.fish+' fish';
+    const c=document.createElement('span');c.className='chk';c.textContent='\u2713';
+    const tip="Moana's Boat in the "+l.zone+" is full: "+l.fish+' fish to pick up';c.title=tip;c.setAttribute('role','img');c.setAttribute('aria-label',tip);
+    li.append(nm,num,c);ul.append(li);
+  });
+  d.append(top,ul);return d;
+}
 // Time-bending To-do card: one row per zone (Valley, Eternity Isle) with its node count, a check once every node is back.
 function timeCard(zones){
   const d=document.createElement('div');d.className='vcard gather';
@@ -456,6 +487,25 @@ function farmCard(rows){
   });
   d.append(ul);return d;
 }
+// Pick Fruit To-do card: fruit under 25 held that is on a tree now, with the zones the trees stand in (trees per zone); the fruit total as hover text.
+function fruitCard(rows){
+  const d=document.createElement('div');d.className='vcard gather'+(rows.length>8?' wide':'');
+  const top=document.createElement('div');top.className='top';
+  const n=document.createElement('span');n.className='vname';n.textContent='PICK FRUIT';
+  top.append(n);d.append(top);
+  const ul=document.createElement('ul');ul.className='gifts';
+  rows.forEach(r=>{
+    const li=document.createElement('li');li.style.cssText='display:block;padding:3px 0';
+    const line=document.createElement('div');line.style.cssText='display:flex;gap:8px';
+    const nm=document.createElement('span');nm.className='gname';nm.textContent=r.name;
+    const a=wikiLink(r.wiki_url,r.name);if(a)nm.replaceChildren(a);
+    const num=document.createElement('span');num.className='gnum'+(r.have===0?' short':'');num.textContent=r.have+'/'+r.need;
+    line.append(nm,num);
+    const w=document.createElement('small');w.textContent=r.zones.join(', ');w.title=r.fruit+' fruit on '+r.trees+(r.trees===1?' tree':' trees');
+    li.append(line,w);ul.append(li);
+  });
+  d.append(ul);return d;
+}
 // A To-do Villager card: portrait, name, profession, talk icon, level, then the wanted gifts.
 function todoCard(t){
   const d=document.createElement('div');d.className='vcard';
@@ -512,14 +562,16 @@ function todoCard(t){
   }
   return d;
 }
-// The To-do cards in display order: Cook, Farm, Villagers (gifts/talk), Chests, Time-bending.
+// The To-do cards in display order: Farm, Pick Fruit, Cook, Villagers (gifts/talk), Chests, Pick Up Fish, Time-bending.
 function todoCards(r){
   const cards=[...r.todo].map((t,i)=>({t,i,bp:t.gifts.filter(x=>x.backpack_count>0).length,ck:t.gifts.filter(x=>x.in_chest).length}))
     .sort((a,b)=>b.bp-a.bp||b.ck-a.ck||a.i-b.i).map(o=>o.t).map(todoCard);
   if(r.gather)cards.push(gatherCard(r.gather));  // Chests after the Villagers
+  if(r.pick_up_fish)cards.push(fishCard(r.pick_up_fish));  // Pick Up Fish after Chests
   if(r.time_bending.length)cards.push(timeCard(r.time_bending));  // Timebending last
   if(r.cook.length)cards.unshift(cookCard(r.cook));
-  if(r.farm.length)cards.unshift(farmCard(r.farm));  // Farm is always the first card, Cook second
+  if(r.fruit.length)cards.unshift(fruitCard(r.fruit));
+  if(r.farm.length)cards.unshift(farmCard(r.farm));  // Farm is always the first card, then Pick Fruit, then Cook
   return cards;
 }
 // 'Not in the village yet': Villagers of the packs you own who have not moved in, then those that need another pack.
@@ -574,7 +626,7 @@ async function tick(){
         njw.append(s,k<nj.length-1?', ':'');
       });
     }
-    const ntodo=r.todo.length+(r.time_bending.length?1:0)+(r.cook.length?1:0)+(r.farm.length?1:0)+(r.gather?1:0);
+    const ntodo=r.todo.length+(r.time_bending.length?1:0)+(r.cook.length?1:0)+(r.farm.length?1:0)+(r.fruit.length?1:0)+(r.gather?1:0)+(r.pick_up_fish?1:0);
     $('todocount').textContent=ntodo?'('+ntodo+')':'';
     $('todolist').replaceChildren(...todoCards(r));
     const ev=r.event_duties||[];

@@ -9,14 +9,15 @@ window. It never writes to your game folder and sends nothing anywhere.
 **Jobs and To-do.** Every Villager grouped by Profession, with the Profession's bonus chance. Below it,
 the To-do list shows only the Villagers who still need attention (below max level with Daily talk or a
 Favorite gift outstanding). Each card lists the gifts, with a check once you hold the item and where it
-spawns. "Gather For Chests" counts raw materials toward 5 Large Chests, and Time-bending shows which
-areas still have nodes.
+spawns. "Pick Fruit" lists fruit you hold fewer than 25 of that is on a tree now, with the zones your trees stand in.
+"Gather For Chests" counts raw materials toward 5 Large Chests, "Pick Up Fish" lists each zone whose Moana's Boat
+is full, and Time-bending shows which areas still have nodes.
 
 ![Jobs and To-do](docs/screenshots/jobs-and-todo.png)
 
-**Event duties.** Star Path and Dreamlight/Mist duties in one task list. Duties that one action can
-advance together are grouped into a single card, and the list is ordered so you can work top to bottom.
-Use the checkboxes to hide a Star Path you are not playing.
+**Event duties.** Star Path, Dreamlight/Mist and seasonal event duties (the Trick-or-Treat Event, while it
+runs) in one task list. Duties that one action can advance together are grouped into a single card, and the
+list is ordered so you can work top to bottom. Use the checkboxes to hide a list you are not playing.
 
 ![Event duties](docs/screenshots/event-duties.png)
 

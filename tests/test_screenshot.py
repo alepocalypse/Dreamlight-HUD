@@ -36,6 +36,9 @@ class DemoReport(unittest.TestCase):
         self.assertTrue(any(t["name"].startswith("Villager #") for t in r["todo"]))
         self.assertTrue(any(c["name"].startswith("Companion #") for c in r["companions"]["no_job"]))
         self.assertGreater(len(r["todo"]), 15)
+        self.assertEqual(r["pick_up_fish"]["lines"], [{"zone": "Valley", "fish": 20}])
+        self.assertEqual([(f["name"], f["trees"], f["zones"]) for f in r["fruit"]],   # emptiest first; Strawberry is stocked
+                         [("Cherry", 2, ["Peaceful Meadow (2)"]), ("Apple", 4, ["Peaceful Meadow (3)", "Dazzle Beach (1)"])])
 
     def test_duty_mode_shows_a_double_a_triple_and_a_quad(self):
         sizes = {a["size"] for a in screenshot.demo_report()["actions"]}
@@ -45,7 +48,9 @@ class DemoReport(unittest.TestCase):
         actions = screenshot.demo_report()["actions"]
         values = {d["text"]: d["value"] for a in actions for d in a["duties"] if d["path"] in ("Dreamlight Duties", "Mist Duties")}
         self.assertEqual(values, {"Plant 5 Vegetables": 150, "Catch 3 Fish": 250, "Duty #7": 0})
-        self.assertEqual((actions[-1]["label"], actions[-1]["value"]), ("Duty #7", 0))
+        zeros = [a["label"] for a in actions if a["value"] == 0]   # the unknown duty and, while it runs, the Event's
+        self.assertIn("Duty #7", zeros)
+        self.assertEqual(actions[-1]["value"], 0)
 
     def test_profession_cards_show_mixed_and_all_max_states(self):
         cards = screenshot.demo_report()["professions"]
@@ -64,16 +69,27 @@ class BrowserRun(unittest.TestCase):
             self.assertEqual(errors, [])
             self.assertFalse(page.evaluate("document.documentElement.scrollWidth > window.innerWidth"))
 
+    def untick_event(self, page):
+        """The demo's Trick-or-Treat Event duties are listed only while the Event runs (the demo is built at the real
+        time); take them out so the rest of the page is the same all year."""
+        box = page.get_by_label("Trick-or-Treat Event")
+        if box.count():
+            self.assertIn("Sugar Rush", page.inner_text("#actions"))
+            self.assertIn("Trick-or-Treat Event · ", page.inner_text("#pathinfo"))
+            box.uncheck()
+            self.assertNotIn("Sugar Rush", page.inner_text("#actions"))
+
     def test_duty_mode_renders_badged_cards_and_remembers_its_own_list_choice(self):
         with pwpage.app_page(width=400, demo=True, path="/duty") as (page, errors):
+            self.untick_event(page)
             self.assertEqual(page.eval_on_selector_all(".acard .badge", "els => els.map(e => e.textContent)"),
                              ["Quad", "Triple", "Double"])
             self.assertEqual(page.inner_text("#unclaimed"), "2 done, claim in game")
             self.assertIn("Haunting Elegance", page.inner_text("#actions"))
             page.get_by_label("Haunting Elegance").uncheck()
             self.assertNotIn("Haunting Elegance", page.inner_text("#actions"))
-            self.assertEqual(page.evaluate("[localStorage.getItem('ddv-dutymode-off'), localStorage.getItem('ddv-duty-off')]"),
-                             ['["Haunting Elegance"]', None])
+            self.assertEqual(page.evaluate("JSON.parse(localStorage.getItem('ddv-dutymode-off')).includes('Haunting Elegance')"), True)
+            self.assertIsNone(page.evaluate("localStorage.getItem('ddv-duty-off')"))
             self.assertEqual(errors, [])
             self.assertFalse(page.evaluate("document.documentElement.scrollWidth > window.innerWidth"))
 
@@ -81,6 +97,7 @@ class BrowserRun(unittest.TestCase):
         cards = """els => els.map(c => [(c.querySelector('h3') || c.querySelector('li > span')).firstChild.textContent,
                                     (c.querySelector('.top .worth') || {}).textContent || null])"""
         with pwpage.app_page(width=400, demo=True, path="/duty") as (page, errors):
+            self.untick_event(page)
             self.assertEqual(page.eval_on_selector_all(".acard", cards)[:3],
                              [["Catch fish at Dazzle Beach", "≈ 600 Dreamlight"], ["Catch 3 Fish", None],
                               ["Mine blue gems", "≈ 200 Dreamlight"]])

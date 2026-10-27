@@ -7,6 +7,8 @@ WILD_CROPS: wild seed item id (the save's wild plots hold these) -> the crop it 
 seed's internal name ('WildCrop!MushroomSeed' -> 'Vegetable!Mushroom') in ActivityItem.json.
 FLOWER_COLOURS: flower item id -> colours, read from the colour words ending its internal name (the
 flowers carry no colour tag record we could find).
+FRUIT_TREES: fruit tree sapling id (the save's fruit trees hold these as their planted seed) -> (the fruit it
+grows, field 13; fruit per pick, field 14), from the 'FruitTree!...' seeds in ActivityItem.json.
 Usage: python3 tools/gen_stock.py [StreamingAssets/itemlist dir] > ddvhud/stock_data.py
 """
 import os
@@ -97,6 +99,8 @@ def main(folder):
         hit = [c for c, cn in crops.items() if re.sub(r"[^a-z]", "", cn.split("!")[-1].lower()) == base]
         if len(hit) == 1:
             wild[i] = hit[0]
+    trees = {i: (d[13], d[14]) for i, d in records(items, 304 * 100000, 305 * 100000)
+             if d[2].startswith(b"FruitTree!") and isinstance(d.get(13), int) and isinstance(d.get(14), int)}
     special = {}
     for i, d in records(data, 2050200000, 2050200300):
         gem = varint(d[6], 1)[0] if 6 in d and d[6][:1] == b"\x08" else 0
@@ -115,6 +119,9 @@ def main(folder):
     print("}\nFLOWER_COLOURS = {")
     for i, c in sorted(flowers.items()):
         print(f"    {i}: {c!r},")
+    print("}\nFRUIT_TREES = {")
+    for i, t in sorted(trees.items()):
+        print(f"    {i}: {t},")
     print("}")
 
 
