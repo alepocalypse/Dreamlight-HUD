@@ -93,20 +93,18 @@ class BrowserRun(unittest.TestCase):
             self.assertEqual(errors, [])
             self.assertFalse(page.evaluate("document.documentElement.scrollWidth > window.innerWidth"))
 
-    def test_duty_mode_shows_each_actions_total_and_re_ranks_when_a_list_is_unticked(self):
-        cards = """els => els.map(c => [(c.querySelector('h3') || c.querySelector('li > span')).firstChild.textContent,
-                                    (c.querySelector('.top .worth') || {}).textContent || null])"""
+    def test_duty_mode_shows_only_game_rewards_and_re_ranks_when_a_list_is_unticked(self):
+        cards = "els => els.map(c => (c.querySelector('h3') || c.querySelector('li > span')).firstChild.textContent)"
         with pwpage.app_page(width=400, demo=True, path="/duty") as (page, errors):
             self.untick_event(page)
             self.assertEqual(page.eval_on_selector_all(".acard", cards)[:3],
-                             [["Catch fish at Dazzle Beach", "≈ 600 Dreamlight"], ["Catch 3 Fish", None],
-                              ["Mine blue gems", "≈ 200 Dreamlight"]])
+                             ["Catch fish at Dazzle Beach", "Catch 3 Fish", "Mine blue gems"])
+            self.assertNotIn("≈", page.inner_text("body"))
             page.get_by_label("Haunting Elegance").uncheck()
             self.assertEqual(page.eval_on_selector_all(".acard", cards), [
-                ["Catch fish at Dazzle Beach", "≈ 350 Dreamlight"], ["Catch 3 Fish", None], ["Mine blue gems", "≈ 150 Dreamlight"],
-                ["Hang out with a mermaid princess", None], ["Plant 5 Vegetables", None],
-                ["Buy something from Scrooge McDuck's Store", None], ["Feed Sea Turtles their favorite food", None],
-                ["Duty #7", None]])
+                "Catch fish at Dazzle Beach", "Catch 3 Fish", "Mine blue gems", "Hang out with a mermaid princess",
+                "Plant 5 Vegetables", "Buy something from Scrooge McDuck's Store", "Feed Sea Turtles their favorite food",
+                "Duty #7"])
             self.assertEqual(errors, [])
 
 
