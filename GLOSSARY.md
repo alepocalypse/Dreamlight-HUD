@@ -103,3 +103,6 @@ How many open Duties one Action advances: Single (1), Double (2), Triple (3) or 
 
 **Duty mode**:
 A narrow view of the HUD that shows only the Actions for the Duty lists the player follows, ranked by Reward.
+
+**Fragment**:
+A Timebending crafting item that the Royal Hourglass uncovers; one kind is available each day. There are 16 kinds.

@@ -142,9 +142,34 @@ class TimeNodes(unittest.TestCase):
                                          {"Location": {}}, {"Location": {"VillageArea": ""}}, "junk"]})
         self.assertEqual(w.time_nodes, {"Cliff": 1})
 
+    def test_realm_nodes_are_counted_per_scene_and_not_as_areas(self):
+        realm = lambda scene: {"Location": {"Scene": scene}}
+        w = world({"TimeLostTreasures": [realm(1540000009), realm(1540000009), realm(1540000005),
+                                         treasure("VillageAreaType_Beach"), {"Location": {"Scene": None}}]})
+        self.assertEqual(w.realm_nodes, {1540000009: 2, 1540000005: 1})
+        self.assertEqual(w.time_nodes, {"Beach": 1})
+
     def test_missing_treasures_is_empty(self):
+        self.assertEqual(world({}).realm_nodes, {})
         self.assertEqual(world({}).time_nodes, {})
         self.assertEqual(SaveView({}).world.time_nodes, {})
+
+
+def fragment_event(chosen, item=2011100000):
+    return {"ChooseItem": {"ChosenItemID": chosen, "EndDate": None, "NextOccurrence": "2026-10-30T12:00:00Z",
+                           "RecurringEventItemID": item}}
+
+
+class TodaysFragment(unittest.TestCase):
+    def test_is_the_chosen_item_of_the_fragment_recurring_event(self):
+        w = world({"RecurringEvents": {"1": fragment_event(31700001, item=7), "2": fragment_event(31700097)}})
+        self.assertEqual(w.todays_fragment, 31700097)
+
+    def test_is_none_without_the_event_or_with_junk(self):
+        self.assertIsNone(world({}).todays_fragment)
+        self.assertIsNone(world({"RecurringEvents": {"1": fragment_event(31700097, item=7)}}).todays_fragment)
+        self.assertIsNone(world({"RecurringEvents": ["junk", None, {"ChooseItem": None}, {"ChooseItem": {}}]}).todays_fragment)
+        self.assertIsNone(world({"RecurringEvents": {"1": fragment_event("x")}}).todays_fragment)
 
 
 def special(item, hits=0, needed=5):

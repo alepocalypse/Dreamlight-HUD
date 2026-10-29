@@ -797,6 +797,49 @@ class TimeBending(unittest.TestCase):
     def test_both_zones_full(self):
         self.assertEqual([c["full"] for c in self.zones({"Valley": 3, "Eternity": 2})], [True, True])
 
+    def realms(self, scenes, per_scene=3):
+        t = {str(i * 10 + j): {"Location": {"Scene": 1540000000 + i}} for i in range(scenes) for j in range(per_scene)}
+        return build_report({"World": {"Characters": [], "TimeLostTreasures": t}}, NOW)["time_bending"]
+
+    def test_realm_nodes_are_counted_into_a_realms_zone(self):
+        (c,) = self.realms(2, per_scene=2)
+        self.assertEqual((c["zone"], c["nodes"], c["total"], c["areas"], c["full"]), ("Realms", 4, 6, 2, False))
+
+    def test_a_full_realms_zone_comes_after_eternity_isle(self):
+        t = {"v": {"Location": {"VillageArea": "VillageAreaType_Desert01"}}}
+        t.update({f"r{i}": {"Location": {"Scene": 1540000000 + i // 3}} for i in range(30)})
+        z = build_report({"World": {"Characters": [], "TimeLostTreasures": t}}, NOW)["time_bending"]
+        self.assertEqual([(c["zone"], c["nodes"], c["total"], c["full"]) for c in z],
+                         [("Eternity Isle", 1, 24, False), ("Realms", 30, 30, True)])
+
+    def test_nodes_with_neither_area_nor_scene_give_no_realms_row(self):
+        t = {"a": {"Location": {}}, "b": {"Location": None}, "c": {}}
+        self.assertEqual(build_report({"World": {"Characters": [], "TimeLostTreasures": t}}, NOW)["time_bending"], [])
+
+    def fragments(self, held, chosen=31700097, event=True):
+        """The report's Fragments row for a save holding `held` of the chosen Fragment (Broken Lollipop 31700097)."""
+        world = {"Characters": [], "TimeLostTreasures": {"a": {"Location": {"VillageArea": "VillageAreaType_Beach"}}}}
+        if event:
+            world["RecurringEvents"] = {"9": {"ChooseItem": {"ChosenItemID": chosen, "RecurringEventItemID": 2011100000}}}
+        containers = {"0": container({chosen: 1}, cid=0, parent=None), "2": container({chosen: held - 1})} if held else {}
+        return build_report({"World": world, "Player": {"ContainerInventories": containers}}, NOW)["fragments"]
+
+    def test_fragments_row_shows_name_held_and_bar_below_the_bar(self):
+        self.assertEqual(self.fragments(4), {"name": "Broken Lollipop", "held": 4, "bar": 10})
+
+    def test_fragments_row_with_none_held(self):
+        self.assertEqual(self.fragments(0)["held"], 0)
+
+    def test_fragments_row_hidden_at_and_above_the_bar(self):
+        self.assertIsNone(self.fragments(10))
+        self.assertIsNone(self.fragments(11))
+
+    def test_unknown_fragment_falls_back_to_item_number(self):
+        self.assertEqual(self.fragments(2, chosen=31799999)["name"], "Item #31799999")
+
+    def test_no_fragment_event_gives_no_row(self):
+        self.assertIsNone(self.fragments(2, event=False))
+
     def test_a_zone_with_no_nodes_has_no_card(self):
         self.assertEqual([c["zone"] for c in self.zones({"Valley": 0, "Eternity": 1})], ["Eternity Isle"])
         self.assertEqual(build_report({"World": {"Characters": []}}, NOW)["time_bending"], [])

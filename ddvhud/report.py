@@ -3,6 +3,7 @@ import math
 
 from . import catalog, duty_mode, duty_plan, duty_requirements, duty_text, event_duties, shared_actions, slot_duties, stock_zones
 from .companions import COMPANIONS, JOBS  # COMPANIONS: tests patch the table in place through this name
+from .fragments import FRAGMENTS
 from .ingredients import CATEGORIES
 from .recipes import RECIPES
 from .roster import MAX_LEVEL, Roster, _distinct, _parse_time
@@ -239,8 +240,16 @@ TIME_ZONES = (("Valley", 8, 3, ("Beach", "Wetland", "Meadow", "Urban", "Savannah
               ("Eternity Isle", 12, 2, ("AtlanteanOutpost", "Desert", "Jungle")))
 
 
+# Realm nodes are located by Realm scene (Location.Scene), not by village area; observed 3 per scene.
+# ASSUMPTION: the save does not say which Realms the player has unlocked, so the full count is the number of
+# Realm scenes that still hold a node times 3. A Realm whose nodes are all mined drops out of the save's list
+# and out of the count, so it can only show full; it never hides a missing node inside a seen Realm.
+REALM_NODES_PER_SCENE = 3
+
+
 def _time_bending(save):
-    """A card per zone that still has a node: [{zone, nodes, total, areas, full}]; `full` when every node is back."""
+    """A card per zone that still has a node: [{zone, nodes, total, areas, full}]; `full` when every node is back.
+    The "Realms" zone (areas = Realm scenes seen) comes last."""
     counts = save.world.time_nodes
     cards = []
     for zone, areas, cap, prefixes in TIME_ZONES:
@@ -248,7 +257,30 @@ def _time_bending(save):
         if nodes:
             cards.append({"zone": zone, "nodes": nodes, "total": areas * cap, "areas": areas,
                           "full": nodes == areas * cap})
+    realms = save.world.realm_nodes
+    if realms:
+        total = len(realms) * REALM_NODES_PER_SCENE
+        nodes = sum(realms.values())
+        cards.append({"zone": "Realms", "nodes": nodes, "total": total, "areas": len(realms), "full": nodes == total})
     return cards
+
+
+# Fragments: each one crafts one Timebending Table piece for 2 (wiki, 2026-10-29); the bar is the player's choice,
+# enough for five pieces. No daily cap was observed (8 nodes gave 4 of today's Fragment), so the row stays until met.
+FRAGMENT_BAR = 10
+
+
+def _fragments(save):
+    """The Time-bending card's Fragments row {name, held, bar}, None once the player holds FRAGMENT_BAR or more
+    of today's Fragment (backpack, storage and Chests) or when the save names no Fragment for today.
+    The name comes from the Fragment table, `Item #id` for an id it lacks."""
+    item = save.world.todays_fragment
+    if item is None:
+        return None
+    held = save.inventory.owned.get(item, 0)
+    if held >= FRAGMENT_BAR:
+        return None
+    return {"name": FRAGMENTS.get(item) or catalog.item_name(item), "held": held, "bar": FRAGMENT_BAR}
 
 
 # Moana's Boat: fish spaces and minutes per fish for each upgrade level (dreamlightvalleywiki.com, Moana's Boat
@@ -450,6 +482,7 @@ def build_report(profile, now):
         "gather": _gather_for_chests(save),
         "pick_up_fish": _pick_up_fish(save, now),
         "time_bending": _time_bending(save),
+        "fragments": _fragments(save),
         "cook": cook,
         "farm": _farm_list(cook, save.inventory.owned, save.known_meals),
         "fruit": _pick_fruit(save, now),
