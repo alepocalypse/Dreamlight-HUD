@@ -22,10 +22,11 @@ list is ordered so you can work top to bottom. Use the checkboxes to hide a list
 ![Event duties](docs/screenshots/event-duties.png)
 
 **Duty mode.** A narrow page (the "Duty mode" link at the top) with only the duties of the lists you
-follow, one card per action, the most rewarding first. Each card counts how many duties that one action
-advances (Double, Triple, Quad) and its total reward in Dreamlight, counting a Star Path token as 10
-Dreamlight and Mist or Storybook Magic at par. A Star Path duty whose reward is not known yet counts at that
-Star Path's typical reward. Start it in its own small window with `--duty`.
+follow, one card per action. Each card counts how many duties that one action advances (Double, Triple,
+Quad) and shows each duty's reward as the game states it. The most rewarding action comes first: rewards are
+compared in Dreamlight, counting a Star Path token as 10 Dreamlight and Mist or Storybook Magic at par, and a
+Star Path duty whose reward is not known yet counts at that Star Path's typical reward. Start it in its own
+small window with `--duty`.
 
 ![Duty mode](docs/screenshots/duty-mode.png)
 
