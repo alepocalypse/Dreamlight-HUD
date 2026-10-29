@@ -58,12 +58,21 @@ _RIPPLE_AREAS = {"Beach": 0, "Wetland": 1, "Meadow": 2, "Urban": 3, "Savannah": 
                  "Cliff": 7, "AtlanteanOutpost": 8, "Desert": 12, "Jungle": 16}
 
 
+_FRAGMENT_EVENT = 2011100000   # RecurringEventItemID of the daily "which Fragment is available today" event
+
+
 class World:
     """What lies in the world.
     loose(item): how many objects with that ItemID lie loose in the world's grids (0 when none or no data).
     time_nodes: {village area: Time-bending nodes still to mine there}, the area name without its
         "VillageAreaType_" prefix. One TimeLostTreasures entry per node; entries without a
-        Location.VillageArea are skipped. Treat the dict as read-only.
+        Location.VillageArea are skipped (Realm nodes are in realm_nodes). Treat the dict as read-only.
+    realm_nodes: {Realm scene id: Time-bending nodes still to mine there}, from entries located by
+        Location.Scene instead of a village area (observed 2026-10-29: 10 scenes, 3 nodes each). Read-only.
+    todays_fragment: the item id of today's Timebending Fragment, None when the save has no such event. It is the
+        `ChooseItem` entry of World.RecurringEvents (id -> {event type: data}) whose RecurringEventItemID is
+        _FRAGMENT_EVENT; its ChosenItemID is the Fragment. It rotates at the event's NextOccurrence (12:00 UTC),
+        not at the daily reset (verified on the real save 2026-10-29).
     special_rocks: {village area key: MiningData item id} for each area whose Special mining rock (the one
         that yields a named gem) is still there: present and not yet hit NumberOfHitsNeeded times. The area
         keys are the ints of Villages[].Areas (0-7 the Valley, 8-19 Eternity Isle).
@@ -103,12 +112,25 @@ class World:
         treasures = world.get("TimeLostTreasures") or {}
         if isinstance(treasures, dict):
             treasures = treasures.values()
-        self.time_nodes = {}
+        self.time_nodes, self.realm_nodes = {}, {}
         for t in treasures:
-            area = ((t or {}).get("Location") or {}).get("VillageArea") if isinstance(t, dict) else None
+            loc = (t or {}).get("Location") if isinstance(t, dict) else None
+            loc = loc if isinstance(loc, dict) else {}
+            area = loc.get("VillageArea")
+            scene = loc.get("Scene")
+            if not area and isinstance(scene, int):
+                self.realm_nodes[scene] = self.realm_nodes.get(scene, 0) + 1
             if area and isinstance(area, str):
                 area = area.removeprefix("VillageAreaType_")
                 self.time_nodes[area] = self.time_nodes.get(area, 0) + 1
+
+        self.todays_fragment = None
+        events = world.get("RecurringEvents") or {}
+        for event in (events.values() if isinstance(events, dict) else []):
+            choose = event.get("ChooseItem") if isinstance(event, dict) else None
+            if isinstance(choose, dict) and choose.get("RecurringEventItemID") == _FRAGMENT_EVENT \
+                    and isinstance(choose.get("ChosenItemID"), int):
+                self.todays_fragment = choose["ChosenItemID"]
 
         self.special_rocks, self.items_by_area, self.ripples, self.wild_crops, self.fruit_trees = {}, {}, {}, {}, {}
         by_id = {g.get("ID"): g for g in grids if isinstance(g, dict)}

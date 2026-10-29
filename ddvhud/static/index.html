@@ -415,14 +415,21 @@ function fishCard(f){
   });
   d.append(top,ul);return d;
 }
-// Time-bending To-do card: one row per zone (Valley, Eternity Isle) with its node count, a check once every node is back.
-function timeCard(zones){
+// Time-bending To-do card: first a Fragments row (today's Fragment, held/bar) while the bar is unmet, then one row per
+// zone (Valley, Eternity Isle, Realms) with its node count, a check once every node is back.
+function timeCard(zones,frag){
   const d=document.createElement('div');d.className='vcard gather';
   const top=document.createElement('div');top.className='top';
   const n=document.createElement('span');n.className='vname';n.textContent='Timebending';
   const ic=profIcon('Time-bending','portrait none','Timebending');ic.width=ic.height=64;
   top.append(ic,n);
   const ul=document.createElement('ul');ul.className='gifts';
+  if(frag){
+    const li=document.createElement('li');
+    const nm=document.createElement('span');nm.className='gname';nm.textContent='Fragments: '+frag.name;
+    const num=document.createElement('span');num.className='gnum';num.textContent=frag.held+'/'+frag.bar;
+    li.append(nm,num);ul.append(li);
+  }
   zones.forEach(z=>{
     const li=document.createElement('li');
     const nm=document.createElement('span');nm.className='gname';nm.textContent=z.zone;
@@ -568,7 +575,7 @@ function todoCards(r){
     .sort((a,b)=>b.bp-a.bp||b.ck-a.ck||a.i-b.i).map(o=>o.t).map(todoCard);
   if(r.gather)cards.push(gatherCard(r.gather));  // Chests after the Villagers
   if(r.pick_up_fish)cards.push(fishCard(r.pick_up_fish));  // Pick Up Fish after Chests
-  if(r.time_bending.length)cards.push(timeCard(r.time_bending));  // Timebending last
+  if(r.time_bending.length)cards.push(timeCard(r.time_bending,r.fragments));  // Timebending last
   if(r.cook.length)cards.unshift(cookCard(r.cook));
   if(r.fruit.length)cards.unshift(fruitCard(r.fruit));
   if(r.farm.length)cards.unshift(farmCard(r.farm));  // Farm is always the first card, then Pick Fruit, then Cook
